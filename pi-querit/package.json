@@ -1,0 +1,64 @@
+{
+  "name": "pi-querit",
+  "version": "1.0.0",
+  "description": "Querit web search and content retrieval tools for the Pi coding agent",
+  "type": "module",
+  "license": "MIT",
+  "author": "QUERIT PRIVATE LIMITED",
+  "homepage": "https://www.querit.ai",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/querit-ai/querit-plugins.git"
+  },
+  "bugs": {
+    "url": "https://github.com/querit-ai/querit-plugins/issues"
+  },
+  "keywords": [
+    "pi-package",
+    "pi-extension",
+    "querit",
+    "web-search",
+    "ai",
+    "llm"
+  ],
+  "files": [
+    "src",
+    "README.md",
+    "README-zh.md",
+    "LICENSE"
+  ],
+  "pi": {
+    "extensions": [
+      "./src/index.ts"
+    ]
+  },
+  "scripts": {
+    "check": "tsc --noEmit",
+    "test": "vitest run tests",
+    "test:live": "tsx scripts/live-smoke.ts",
+    "pack:check": "npm pack --dry-run",
+    "prepack": "npm run check && npm test"
+  },
+  "peerDependencies": {
+    "@earendil-works/pi-ai": "*",
+    "@earendil-works/pi-coding-agent": "*",
+    "@earendil-works/pi-tui": "*",
+    "typebox": "*"
+  },
+  "devDependencies": {
+    "@earendil-works/pi-ai": "^0.83.0",
+    "@earendil-works/pi-coding-agent": "^0.83.0",
+    "@earendil-works/pi-tui": "^0.83.0",
+    "@types/node": "^24.0.0",
+    "tsx": "^4.20.0",
+    "typebox": "^1.3.7",
+    "typescript": "^5.9.0",
+    "vitest": "^4.1.0"
+  },
+  "engines": {
+    "node": ">=22.19.0"
+  },
+  "publishConfig": {
+    "access": "public"
+  }
+}

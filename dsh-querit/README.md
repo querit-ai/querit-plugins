@@ -1,0 +1,158 @@
+# dsh-querit
+
+[![license](https://img.shields.io/badge/license-MIT-yellow.svg)](./LICENSE)
+
+Querit-backed search and fetch providers for the DeepSeek Harness [web capability seam](https://www.npmjs.com/package/@deepseek-ai/dsh-web) (`ctx.web`). It is the DeepSeek Harness counterpart of [`pi-querit`](https://www.npmjs.com/package/pi-querit): the model-facing `web_search` and `web_fetch` tools keep working unchanged, and this package swaps their backend to [Querit](https://www.querit.ai) — live web search and clean page content through `POST https://api.querit.ai/v1/search` and `/v1/contents`.
+
+Sign up on [Querit.ai](https://www.querit.ai) to get an API key with **1,000 free API calls per month** — no credit card required.
+
+## Quick start
+
+1. Install the package (see **Install and update** below) and add the two patch blocks from **Wire it up** to your profile's `cordis.patch.yml`.
+2. Configure your Querit API key in priority order:
+   - `QUERIT_API_KEY` in the launching environment, or
+   - the credentials store (`$DSH_HOME/.credentials.yaml`: `QUERIT_API_KEY: <key>`, hot-reloaded — no restart needed), or
+   - `apiKey` on the `web-search-querit` row (a literal; least preferred, secrets should not live in composition files).
+3. Restart the profile to load the plugin row.
+
+If the plugin loads without any resolvable key, the host log prints a one-time warning; a search attempted before a key is configured fails with a `WEB_PROVIDER_CREDENTIAL_MISSING` error that spells out the same three options.
+
+There is no settings-page UI for out-of-tree plugins in the current harness version (the web settings API serves a fixed namespace whitelist), so all configuration is the composition patch plus the credentials store.
+
+This is an **implementation** package: it registers one search provider and one fetch provider into `ctx.web`, resolves the API key per operation through the optional `ctx.credentials` seam (environment fallback), and reuses [`@deepseek-ai/dsh-tool-web`](https://www.npmjs.com/package/@deepseek-ai/dsh-tool-web)'s `applyWebFetchTool` to register the model-facing `web_fetch` tool. That last step exists because in the web app the host `tool-web` row is disabled and the shipped presets keep `fetch: false` — this package is the one place that turns page retrieval on. Both providers share the stable id `querit`.
+
+## Install and update
+
+The package is published on npm as [`dsh-querit`](https://www.npmjs.com/package/dsh-querit), so the normal path needs no build toolchain:
+
+```bash
+dsh plugin --profile web add dsh-querit
+```
+
+(`dsh plugin` forwards to pnpm in the profile directory; replace `web` with your profile name.)
+
+### Update
+
+```bash
+dsh plugin --profile web outdated                 # what's new?
+dsh plugin --profile web update dsh-querit    # update within the declared range
+```
+
+pnpm 11+ ignores releases younger than its minimum-release-age window, so a version published minutes ago may not show up in `outdated`/`update` yet. Install it immediately with an explicit version:
+
+```bash
+dsh plugin --profile web add dsh-querit@<version>
+```
+
+### Alternative sources
+
+```bash
+# GitHub Release tarball (download from the querit-plugins releases page first)
+dsh plugin --profile web add ./dsh-querit-<version>.tgz
+```
+
+Only when pnpm is unavailable: unpack the tarball into `<profile>/node_modules/dsh-querit` and add `"dsh-querit": "<version>"` to the profile `package.json` dependencies. A manually unpacked copy is invisible to pnpm, so `dsh plugin remove` will not delete it.
+
+## Wire it up
+
+Edit the profile's `cordis.patch.yml` (`$DSH_HOME/profiles/<profile>/cordis.patch.yml`):
+
+```yaml
+# Add the provider row (registers the Querit providers AND the web_fetch tool).
+- insert:
+    - id: web-search-querit
+      name: 'dsh-querit'
+      config:
+        apiKeyEnv: QUERIT_API_KEY
+
+# Route the seam's search and fetch through Querit.
+- id: web
+  config:
+    searchProvider: querit
+    fetchProvider: querit
+```
+
+That is the whole wiring: `web_search` (registered per session by the agent preset) and `web_fetch` (registered by this package) both route through `ctx.web`, which now selects Querit. A patch **replaces** the targeted row's whole `config`, so restate every key you need. Store the API key through the credentials service, export `QUERIT_API_KEY` in the launching environment, or set a literal `apiKey` in the row above. Restart the profile to load the new row.
+
+Keep the DeepSeek provider reachable by leaving the `web-search-deepseek` row in place; the seam selects by the configured id, and switching back is a one-line patch.
+
+If a preset ever registers `web_fetch` itself (its `tool-web` row with `fetch: true`), set `fetch: false` on this row so only one registration exists per scope.
+
+## Config
+
+| Key | Default | Meaning |
+|---|---|---|
+| `apiKey` | omitted | Literal Querit API key. Prefer `apiKeyEnv` so no secret enters configuration; a non-empty literal wins. |
+| `apiKeyEnv` | `QUERIT_API_KEY` | Credential reference resolved per operation through `ctx.credentials`, or from the process environment when that seam is absent. A missing value fails the call as `WEB_PROVIDER_CREDENTIAL_MISSING`. |
+| `baseURL` | `https://api.querit.ai` | Querit API base; `/v1/search` and `/v1/contents` are appended. Falls back to `$QUERIT_BASE_URL` from any environment layer. An unparseable value makes both providers unavailable. |
+| `timeoutMs` | `70000` | Per-request timeout in ms (minimum 1000). |
+| `count` | `5` | Result count used when the seam passes no `maxResults` bound (1–20; the API caps at 20). The `dsh-tool-web` layer always bounds searches, so this mainly serves direct seam callers. |
+| `timeRange` | none | Relative (`d7`, `w2`, `m3`, `y1`, or any `dN`/`wN`/`mN`/`yN`) or `YYYY-MM-DDtoYYYY-MM-DD` date range. |
+| `countries` | none | Country bias. Valid values: `argentina`, `australia`, `brazil`, `canada`, `colombia`, `france`, `germany`, `india`, `indonesia`, `japan`, `mexico`, `nigeria`, `philippines`, `south korea`, `spain`, `united kingdom`, `united states`. |
+| `languages` | none | Language filter. Valid values: `english`, `japanese`, `korean`, `german`, `french`, `spanish`, `portuguese`. |
+| `includeDomains` | none | **Whitelist** hostnames; only these domains return results. |
+| `excludeDomains` | none | **Blacklist** hostnames; these domains never return results. |
+| `includeContent` | `false` | Request sentence-level content excerpts (`needContent`); excerpts are appended to each source's snippet. |
+| `chunksPerDoc` | `1` | Content chunks per result (1–3). |
+| `fetchFormat` | `markdown` | Format requested from `/v1/contents` for fetch calls: `markdown`, `text`, or `html`. HTML bodies are labeled `kind: 'html'` so `dsh-tool-web` converts them to markdown. |
+| `fetchCrawlTimeout` | `10` | Per-page crawl timeout in seconds (1–60). |
+| `fetchMaxChars` | `8000` | Cap applied to one fetched page's decoded body, in chars; a cut body sets `truncated`. |
+| `fetch` | `true` | Register the model-facing `web_fetch` tool (reused from `@deepseek-ai/dsh-tool-web`). Set `false` when another row already registers `web_fetch`. |
+| `fetchTimeoutMs` | `30000` | Cooperative tool-call timeout budget (ms) attached to `web_fetch`. |
+| `fetchMaxOutputChars` | `200000` | Cap on one `web_fetch` rendered output, in chars. |
+
+```yaml
+- id: web-search-querit
+  name: 'dsh-querit'
+  config:
+    apiKeyEnv: QUERIT_API_KEY
+    count: 8
+    timeRange: m3
+    languages: [english]
+    excludeDomains: [pinterest.com, facebook.com, instagram.com, tiktok.com]
+```
+
+The entry above is the base layer of the `web-search-querit` Settings section: a user layer over it reaches the NEXT operation, because the providers project the section per call rather than capturing it at registration. The seam's provider selection therefore never flickers when a default changes. `apiKey` carries `role('secret')`, so it never rides a `describe()` response — a configuration surface learns only whether the credentials domain holds a value for the reference `apiKeyEnv` names.
+
+There are two configuration surfaces, since the current harness version ships no settings-page UI for out-of-tree plugins (the web settings API serves a fixed namespace whitelist):
+
+1. **The composition patch** (`cordis.patch.yml` above) — needs a restart.
+2. **The settings document** — `$DSH_HOME/settings.yaml`, the same directory as `.credentials.yaml`. A `web-search-querit:` section there overrides the row config and **hot-reloads** (the settings provider watches the file; verified live — no restart needed):
+
+```yaml
+web-search-querit:
+  count: 3
+  timeRange: m3
+  languages: [english]
+```
+
+Resolution order per field: `settings.yaml` section > `cordis.patch.yml` row config > schema default. The API key is kept separately in `.credentials.yaml` (or the launching environment), never in `settings.yaml`.
+
+## Mapping
+
+Search results become citeable sources: `url` ← `url`, `title` ← `title`, `snippet` ← `snippet` plus requested sentence excerpts, `publishedAt` ← `page_age`. No provider-generated answer text is trusted as `content`, so `content` is omitted. Results are deduplicated by URL and normalized to HTTP(S). The seam enforces the request's `maxResults` bound, so the provider sets `truncated: false` and applies `min(maxResults, 20)` at the request layer as a cost optimization.
+
+Fetch maps a successful `/v1/contents` crawl to `statusCode 200` with a `text` body (`markdown`/`text` formats) or an `html` body (`html` format). A failed crawl is a `WEB_PROVIDER_ERROR`: Querit proxies the retrieval, so no real HTTP status exists to report.
+
+Failures use the seam's `WebError` taxonomy: `WEB_ABORTED` for cancellation, `WEB_PROVIDER_ERROR` for API/HTTP/parse failures, and `WEB_PROVIDER_CREDENTIAL_MISSING` for a missing key. API keys are redacted from every error surface, responses are size-limited (2 MiB search, 10 MiB contents), and retrieved text is stripped of terminal escape/control sequences and bidi controls before the model sees it.
+
+## Safety
+
+Treat every search result and retrieved page as untrusted external data. The model-facing tools already tell the model this; the providers additionally never follow instructions found in retrieved content and never return content as an answer.
+
+## Development
+
+```bash
+npm install
+npm run check   # typecheck src + tests
+npm test        # vitest unit tests
+npm run build   # tsc -> lib/
+```
+
+## Packaging notes
+
+The `peerDependencies` are declared **optional**: the harness provides them at runtime (the profile boot resolves them through the flat module fallback under `$DSH_HOME/profiles/node_modules`), not through the profile's own pnpm graph — so `dsh plugin add` finishes without installing peers and prints no peer warnings.
+
+## License
+
+MIT
