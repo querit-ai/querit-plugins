@@ -1,0 +1,64 @@
+{
+  "name": "opencode-querit",
+  "version": "1.0.0",
+  "description": "Querit web search and page retrieval tools (web_search / web_fetch) for OpenCode",
+  "type": "module",
+  "main": "lib/index.js",
+  "types": "lib/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./lib/index.d.ts",
+      "default": "./lib/index.js"
+    },
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "lib",
+    "README.md",
+    "README-zh.md",
+    "LICENSE"
+  ],
+  "license": "MIT",
+  "author": "QUERIT PRIVATE LIMITED",
+  "homepage": "https://www.querit.ai",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/querit-ai/querit-plugins.git"
+  },
+  "bugs": {
+    "url": "https://github.com/querit-ai/querit-plugins/issues"
+  },
+  "keywords": [
+    "opencode",
+    "opencode-plugin",
+    "querit",
+    "web-search",
+    "web-fetch",
+    "ai",
+    "llm"
+  ],
+  "scripts": {
+    "check": "tsc -p tsconfig.check.json",
+    "build": "tsc -p tsconfig.json",
+    "test": "vitest run tests",
+    "test:live": "tsx scripts/live-smoke.ts",
+    "pack:check": "npm pack --dry-run",
+    "prepack": "npm run check && npm test && npm run build"
+  },
+  "peerDependencies": {
+    "@opencode-ai/plugin": ">=0.15.0 <2"
+  },
+  "devDependencies": {
+    "@opencode-ai/plugin": "^1.18.18",
+    "@types/node": "^24.0.0",
+    "tsx": "^4.20.0",
+    "typescript": "^5.9.0",
+    "vitest": "^4.1.0"
+  },
+  "engines": {
+    "node": ">=22.19.0"
+  },
+  "publishConfig": {
+    "access": "public"
+  }
+}

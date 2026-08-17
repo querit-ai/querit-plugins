@@ -1,0 +1,9 @@
+# Dependencies and build artifacts are not committed.
+node_modules/
+*.tgz
+*.log
+
+# lib/ is intentionally COMMITTED: the compiled package is what OpenCode
+# loads as an npm plugin, and committing it lets users install from GitHub
+# Release tarballs without a build toolchain. Rebuild with `npm run build`
+# and commit the result on release.
