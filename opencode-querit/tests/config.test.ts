@@ -98,9 +98,9 @@ describe("resolveConfig", () => {
 });
 
 describe("resolveQueritApiKey", () => {
-  it("prefers the literal apiKey option", () => {
+  it("prefers the environment variable over the literal apiKey option", () => {
     const config = resolveConfig({ apiKey: "sk-literal" }, { QUERIT_API_KEY: "sk-env" });
-    expect(resolveQueritApiKey(config)).toBe("sk-literal");
+    expect(resolveQueritApiKey(config, { QUERIT_API_KEY: "sk-env" })).toBe("sk-env");
   });
 
   it("falls back to the apiKeyEnv variable", () => {
@@ -111,6 +111,11 @@ describe("resolveQueritApiKey", () => {
   it("honors a custom apiKeyEnv name", () => {
     const config = resolveConfig({ apiKeyEnv: "MY_QUERIT_KEY" }, { MY_QUERIT_KEY: "sk-custom" });
     expect(resolveQueritApiKey(config, { MY_QUERIT_KEY: "sk-custom" })).toBe("sk-custom");
+  });
+
+  it("uses the literal apiKey option when no environment key is set", () => {
+    const config = resolveConfig({ apiKey: "sk-literal" }, {});
+    expect(resolveQueritApiKey(config, {})).toBe("sk-literal");
   });
 
   it("returns undefined when nothing is configured", () => {

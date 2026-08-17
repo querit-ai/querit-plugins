@@ -67,7 +67,7 @@ export const QueritPlugin: Plugin = async (_input, rawOptions = {}) => {
           const apiKey = resolveQueritApiKey(config);
           if (!apiKey) {
             throw new Error(
-              `Querit is not configured. Set the ${config.apiKeyEnv} environment variable or pass "apiKey" in the opencode-querit plugin options.`,
+              `Querit is not configured. Set the ${config.apiKeyEnv} environment variable (recommended) or pass "apiKey" in the opencode-querit plugin options.`,
             );
           }
 
@@ -129,7 +129,7 @@ export const QueritPlugin: Plugin = async (_input, rawOptions = {}) => {
           const apiKey = resolveQueritApiKey(config);
           if (!apiKey) {
             throw new Error(
-              `Querit is not configured. Set the ${config.apiKeyEnv} environment variable or pass "apiKey" in the opencode-querit plugin options.`,
+              `Querit is not configured. Set the ${config.apiKeyEnv} environment variable (recommended) or pass "apiKey" in the opencode-querit plugin options.`,
             );
           }
 

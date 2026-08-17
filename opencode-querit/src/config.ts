@@ -4,9 +4,10 @@
  * file); every value is validated, normalized, and defaulted here so the
  * tools only ever see a fully resolved `QueritConfig`.
  *
- * API-key resolution happens per tool call in priority order: a literal
- * `apiKey` option, then the environment variable named by `apiKeyEnv`
- * (default `QUERIT_API_KEY`).
+ * API-key resolution happens per tool call in priority order: the
+ * environment variable named by `apiKeyEnv` (default `QUERIT_API_KEY`), then
+ * a literal `apiKey` option. The environment wins so a single exported key
+ * overrides plugin config everywhere.
  * @module opencode-querit/config
  */
 
@@ -227,14 +228,19 @@ export function resolveConfig(
   };
 }
 
-/** Resolve the Querit API key for one operation: literal option, then `apiKeyEnv`. */
+/**
+ * Resolve the Querit API key for one operation: the environment variable
+ * named by `apiKeyEnv` first (so `QUERIT_API_KEY` overrides everything for
+ * testing), then the literal `apiKey` plugin option.
+ */
 export function resolveQueritApiKey(
   config: QueritConfig,
   env: NodeJS.ProcessEnv = process.env,
 ): string | undefined {
-  if (config.apiKey !== undefined && config.apiKey.length > 0) return config.apiKey;
   const ambient = env[config.apiKeyEnv]?.trim();
-  return ambient !== undefined && ambient.length > 0 ? ambient : undefined;
+  if (ambient !== undefined && ambient.length > 0) return ambient;
+  if (config.apiKey !== undefined && config.apiKey.length > 0) return config.apiKey;
+  return undefined;
 }
 
 function normalizeEnumList<T extends string>(

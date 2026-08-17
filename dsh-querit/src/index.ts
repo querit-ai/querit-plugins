@@ -197,20 +197,22 @@ export async function apply(ctx: Context, config: Config): Promise<void> {
 }
 
 /**
- * Resolve the Querit API key for one operation in priority order: literal row
- * `apiKey`, then the credentials service (which itself reads the inherited
- * environment before the managed document), then the launching environment.
+ * Resolve the Querit API key for one operation in priority order: the
+ * launching environment (so one exported `QUERIT_API_KEY` overrides
+ * everything for testing), then the credentials service (which itself reads
+ * the inherited environment before the managed document), then a literal row
+ * `apiKey`.
  */
 export async function resolveQueritApiKey(
   ctx: Context,
   apiKeyEnv: CredentialRef,
   literalApiKey: string | undefined,
 ): Promise<string | undefined> {
-  if (literalApiKey !== undefined && literalApiKey.length > 0) return literalApiKey;
+  const ambient = launchEnvironmentOf(ctx).get(apiKeyEnv);
+  if (ambient !== undefined && ambient.value.length > 0) return ambient.value;
   const credentials = ctx.get("credentials");
   if (credentials !== undefined) return (await credentials.resolve(apiKeyEnv))?.value;
-  const ambient = launchEnvironmentOf(ctx).get(apiKeyEnv);
-  return ambient !== undefined && ambient.value.length > 0 ? ambient.value : undefined;
+  return literalApiKey !== undefined && literalApiKey.length > 0 ? literalApiKey : undefined;
 }
 
 /**

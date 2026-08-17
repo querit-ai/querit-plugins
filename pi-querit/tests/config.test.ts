@@ -102,16 +102,23 @@ describe("Querit configuration", () => {
       search: { includeDomains: ["ok.example"] },
     });
   });
-  it("prefers JSON configuration over the environment fallback", async () => {
+  it("prefers the environment variable over the JSON configuration", async () => {
     const path = await temporaryConfigPath();
     await saveQueritConfig("json-key", path);
 
-    await expect(resolveQueritApiKey({ configPath: path, env: { QUERIT_API_KEY: "env-key" } })).resolves.toBe("json-key");
+    await expect(resolveQueritApiKey({ configPath: path, env: { QUERIT_API_KEY: "env-key" } })).resolves.toBe("env-key");
   });
 
   it("uses the environment when the JSON file is absent", async () => {
     const path = await temporaryConfigPath();
     await expect(resolveQueritApiKey({ configPath: path, env: { QUERIT_API_KEY: " env-key " } })).resolves.toBe("env-key");
+  });
+
+  it("uses the JSON configuration when no environment key is set", async () => {
+    const path = await temporaryConfigPath();
+    await saveQueritConfig("json-key", path);
+
+    await expect(resolveQueritApiKey({ configPath: path, env: {} })).resolves.toBe("json-key");
   });
 
   it("rejects malformed or empty configuration", async () => {

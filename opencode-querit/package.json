@@ -1,6 +1,6 @@
 {
   "name": "opencode-querit",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "Querit web search and page retrieval tools (web_search / web_fetch) for OpenCode",
   "type": "module",
   "main": "lib/index.js",

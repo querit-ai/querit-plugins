@@ -4,9 +4,10 @@
  * file); every value is validated, normalized, and defaulted here so the
  * tools only ever see a fully resolved `QueritConfig`.
  *
- * API-key resolution happens per tool call in priority order: a literal
- * `apiKey` option, then the environment variable named by `apiKeyEnv`
- * (default `QUERIT_API_KEY`).
+ * API-key resolution happens per tool call in priority order: the
+ * environment variable named by `apiKeyEnv` (default `QUERIT_API_KEY`), then
+ * a literal `apiKey` option. The environment wins so a single exported key
+ * overrides plugin config everywhere.
  * @module opencode-querit/config
  */
 export const COUNTRY_VALUES = [
@@ -153,12 +154,18 @@ export function resolveConfig(options = {}, env = process.env) {
         maxOutputChars,
     };
 }
-/** Resolve the Querit API key for one operation: literal option, then `apiKeyEnv`. */
+/**
+ * Resolve the Querit API key for one operation: the environment variable
+ * named by `apiKeyEnv` first (so `QUERIT_API_KEY` overrides everything for
+ * testing), then the literal `apiKey` plugin option.
+ */
 export function resolveQueritApiKey(config, env = process.env) {
+    const ambient = env[config.apiKeyEnv]?.trim();
+    if (ambient !== undefined && ambient.length > 0)
+        return ambient;
     if (config.apiKey !== undefined && config.apiKey.length > 0)
         return config.apiKey;
-    const ambient = env[config.apiKeyEnv]?.trim();
-    return ambient !== undefined && ambient.length > 0 ? ambient : undefined;
+    return undefined;
 }
 function normalizeEnumList(values, allowed, field) {
     if (values === undefined)

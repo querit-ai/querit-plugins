@@ -18,8 +18,8 @@ Sign up on [Querit.ai](https://www.querit.ai) to get an API key with **1,000 fre
    ```
 
 2. Configure your Querit API key in priority order:
-   - `apiKey` in the plugin options tuple (`["opencode-querit", { "apiKey": "..." }]`; least preferred — secrets should not live in config files), or
-   - the `QUERIT_API_KEY` environment variable (default; override the name with `apiKeyEnv`).
+   - the `QUERIT_API_KEY` environment variable (default; override the name with `apiKeyEnv`) — the environment always wins, so one exported key overrides plugin options everywhere, or
+   - `apiKey` in the plugin options tuple (`["opencode-querit", { "apiKey": "..." }]`; least preferred — secrets should not live in config files).
 3. Restart OpenCode. A tool call without a key fails with a message that spells out both options.
 
 The two tools are `web_search` (live web search with cited results) and `web_fetch` (full page content for up to 10 URLs). They are additive: OpenCode's built-in `websearch`/`webfetch` tools stay available. To steer the model to Querit, mention the tools or restrict the built-ins through [permissions](https://opencode.ai/docs/permissions/).
@@ -57,7 +57,7 @@ Options go in the plugin tuple in `opencode.json`:
 
 | Key | Default | Meaning |
 |---|---|---|
-| `apiKey` | omitted | Literal Querit API key. Prefer `apiKeyEnv` so no secret enters configuration; a non-empty literal wins. |
+| `apiKey` | omitted | Literal Querit API key. Prefer `apiKeyEnv` so no secret enters configuration. The `apiKeyEnv` environment variable always wins when both are set. |
 | `apiKeyEnv` | `QUERIT_API_KEY` | Environment variable holding the Querit API key. A missing value fails the tool call with an actionable message. |
 | `baseURL` | `https://api.querit.ai` | Querit API base; `/v1/search` and `/v1/contents` are appended. Falls back to `$QUERIT_BASE_URL`. |
 | `timeoutMs` | `70000` | Per-request timeout in ms (minimum 1000). |

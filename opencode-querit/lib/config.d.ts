@@ -4,9 +4,10 @@
  * file); every value is validated, normalized, and defaulted here so the
  * tools only ever see a fully resolved `QueritConfig`.
  *
- * API-key resolution happens per tool call in priority order: a literal
- * `apiKey` option, then the environment variable named by `apiKeyEnv`
- * (default `QUERIT_API_KEY`).
+ * API-key resolution happens per tool call in priority order: the
+ * environment variable named by `apiKeyEnv` (default `QUERIT_API_KEY`), then
+ * a literal `apiKey` option. The environment wins so a single exported key
+ * overrides plugin config everywhere.
  * @module opencode-querit/config
  */
 export declare const COUNTRY_VALUES: readonly ["argentina", "australia", "brazil", "canada", "colombia", "france", "germany", "india", "indonesia", "japan", "mexico", "nigeria", "philippines", "south korea", "spain", "united kingdom", "united states"];
@@ -91,5 +92,9 @@ export declare function normalizeHostname(value: string): string | undefined;
  * silently changing behavior.
  */
 export declare function resolveConfig(options?: OpenCodeQueritOptions, env?: NodeJS.ProcessEnv): QueritConfig;
-/** Resolve the Querit API key for one operation: literal option, then `apiKeyEnv`. */
+/**
+ * Resolve the Querit API key for one operation: the environment variable
+ * named by `apiKeyEnv` first (so `QUERIT_API_KEY` overrides everything for
+ * testing), then the literal `apiKey` plugin option.
+ */
 export declare function resolveQueritApiKey(config: QueritConfig, env?: NodeJS.ProcessEnv): string | undefined;

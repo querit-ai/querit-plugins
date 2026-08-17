@@ -76,9 +76,11 @@ export declare function resolveOptions(ctx: Context, config: Config): QueritProv
 /** Register both Querit providers with `ctx.web`, the `web_fetch` tool, and the first-load key check. */
 export declare function apply(ctx: Context, config: Config): Promise<void>;
 /**
- * Resolve the Querit API key for one operation in priority order: literal row
- * `apiKey`, then the credentials service (which itself reads the inherited
- * environment before the managed document), then the launching environment.
+ * Resolve the Querit API key for one operation in priority order: the
+ * launching environment (so one exported `QUERIT_API_KEY` overrides
+ * everything for testing), then the credentials service (which itself reads
+ * the inherited environment before the managed document), then a literal row
+ * `apiKey`.
  */
 export declare function resolveQueritApiKey(ctx: Context, apiKeyEnv: CredentialRef, literalApiKey: string | undefined): Promise<string | undefined>;
 /**

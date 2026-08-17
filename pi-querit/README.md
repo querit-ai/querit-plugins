@@ -161,7 +161,7 @@ These are persistent defaults applied to every `web_search` call. They are store
 
 The extension applies mode `0600` on POSIX systems. On Windows, the file remains protected by the user profile's filesystem ACLs. The key is never included in tool results or logs.
 
-For CI or ephemeral use, set `QUERIT_API_KEY`. The JSON configuration takes precedence when both are present.
+For CI or ephemeral use, set `QUERIT_API_KEY`. The environment variable takes precedence when both are present.
 
 ## Tools
 

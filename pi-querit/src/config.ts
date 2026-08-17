@@ -127,11 +127,11 @@ export async function loadQueritConfig(configPath = getQueritConfigPath()): Prom
 }
 
 export async function resolveQueritApiKey(options: ApiKeyResolutionOptions = {}): Promise<string | undefined> {
-  const config = await loadQueritConfig(options.configPath ?? getQueritConfigPath());
-  if (config?.apiKey) return config.apiKey;
-
   const environmentKey = (options.env ?? process.env).QUERIT_API_KEY?.trim();
-  return environmentKey || undefined;
+  if (environmentKey) return environmentKey;
+
+  const config = await loadQueritConfig(options.configPath ?? getQueritConfigPath());
+  return config?.apiKey || undefined;
 }
 
 export async function saveQueritConfig(

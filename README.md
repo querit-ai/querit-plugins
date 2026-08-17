@@ -35,7 +35,7 @@ Run the interactive setup wizard inside Pi once:
 The wizard validates the key, then lets you configure persistent search defaults (result count, time range, countries, languages, domain whitelist/blacklist) and an optional fixed-model auto-summary workflow. Everything except the API key can be skipped.
 
 - **Where the key lives:** `~/.pi/agent/querit-search.json` (respects `PI_CODING_AGENT_DIR`), written with mode `0600` on POSIX.
-- **CI / ephemeral alternative:** set the `QUERIT_API_KEY` environment variable. The JSON configuration takes precedence when both are present.
+- **CI / ephemeral alternative:** set the `QUERIT_API_KEY` environment variable. The environment variable takes precedence when both are present.
 - **Never put the key in chat or logs:** the extension masks key input and redacts the key from every error surface.
 
 See the [pi-querit README](./pi-querit/README.md) for the full tool reference.

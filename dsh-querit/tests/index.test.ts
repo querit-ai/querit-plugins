@@ -1,11 +1,13 @@
 import { describe, expect, it, vi } from "vitest";
 import type { Context } from "@deepseek-ai/cordis";
+import { credentialRef } from "@deepseek-ai/dsh-credentials";
 import {
   Config,
   DEFAULT_API_KEY_ENV,
   WEB_SEARCH_QUERIT_SETTINGS_NAMESPACE,
   apply,
   resolveOptions,
+  resolveQueritApiKey,
   validateSection,
 } from "../src/index.js";
 import { QUERIT_PROVIDER_ID } from "../src/provider.js";
@@ -114,6 +116,40 @@ describe("validateSection", () => {
   it("rejects malformed domains", () => {
     expect(() => validateSection(Config({ includeDomains: ["no dot here"] }))).toThrow("includeDomains");
     expect(() => validateSection(Config({ excludeDomains: ["has space.com"] }))).toThrow("excludeDomains");
+  });
+});
+
+describe("resolveQueritApiKey", () => {
+  const ref = credentialRef(DEFAULT_API_KEY_ENV);
+
+  it("prefers the launching environment over stored and literal keys", async () => {
+    const ctx = fakeContext({
+      launchEnvironment: { get: (name: string) => name === "QUERIT_API_KEY" ? { value: "sk-env" } : undefined },
+      credentials: { resolve: async () => ({ value: "sk-stored" }) },
+    });
+
+    await expect(resolveQueritApiKey(ctx, ref, "sk-literal")).resolves.toBe("sk-env");
+  });
+
+  it("prefers the credentials store over the literal row key", async () => {
+    const ctx = fakeContext({
+      launchEnvironment: { get: () => undefined },
+      credentials: { resolve: async () => ({ value: "sk-stored" }) },
+    });
+
+    await expect(resolveQueritApiKey(ctx, ref, "sk-literal")).resolves.toBe("sk-stored");
+  });
+
+  it("uses the literal row key when no environment or store key exists", async () => {
+    const ctx = fakeContext({ launchEnvironment: { get: () => undefined } });
+
+    await expect(resolveQueritApiKey(ctx, ref, "sk-literal")).resolves.toBe("sk-literal");
+  });
+
+  it("returns undefined when nothing is configured", async () => {
+    const ctx = fakeContext({ launchEnvironment: { get: () => undefined } });
+
+    await expect(resolveQueritApiKey(ctx, ref, undefined)).resolves.toBeUndefined();
   });
 });
 

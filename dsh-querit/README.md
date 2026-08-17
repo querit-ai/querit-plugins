@@ -82,7 +82,7 @@ If a preset ever registers `web_fetch` itself (its `tool-web` row with `fetch: t
 
 | Key | Default | Meaning |
 |---|---|---|
-| `apiKey` | omitted | Literal Querit API key. Prefer `apiKeyEnv` so no secret enters configuration; a non-empty literal wins. |
+| `apiKey` | omitted | Literal Querit API key. Prefer `apiKeyEnv` so no secret enters configuration. The `apiKeyEnv` environment variable wins when both are set. |
 | `apiKeyEnv` | `QUERIT_API_KEY` | Credential reference resolved per operation through `ctx.credentials`, or from the process environment when that seam is absent. A missing value fails the call as `WEB_PROVIDER_CREDENTIAL_MISSING`. |
 | `baseURL` | `https://api.querit.ai` | Querit API base; `/v1/search` and `/v1/contents` are appended. Falls back to `$QUERIT_BASE_URL` from any environment layer. An unparseable value makes both providers unavailable. |
 | `timeoutMs` | `70000` | Per-request timeout in ms (minimum 1000). |

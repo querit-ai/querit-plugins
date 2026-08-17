@@ -113,7 +113,7 @@ export function registerQueritExtension(pi: ExtensionAPI, options: QueritExtensi
 
   const requireRuntime = async (): Promise<{ client: QueritClientLike; config?: QueritConfig }> => {
     const config = await loadQueritConfig(configPath);
-    const apiKey = config?.apiKey ?? (options.env ?? process.env).QUERIT_API_KEY?.trim();
+    const apiKey = (options.env ?? process.env).QUERIT_API_KEY?.trim() ?? config?.apiKey;
     if (!apiKey) {
       throw new Error(
         `Querit is not configured. Run /querit-setup in Pi or set QUERIT_API_KEY. Configuration file: ${configPath}`,
