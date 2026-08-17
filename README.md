@@ -8,10 +8,24 @@ Official [Querit](https://www.querit.ai) search plugins for AI agent harnesses.
 | [dsh](./dsh-querit) | Querit-backed search & fetch providers for the `ctx.web` capability seam | `dsh plugin --profile web add dsh-querit` |
 | [opencode](./opencode-querit) | `web_search` / `web_fetch` custom tools wired to the Querit API | `plugin: ["opencode-querit"]` |
 
+## Topics
+
+GitHub topics on this repository (`dsh-plugin`, `pi-extension`, `opencode-plugin`,
+`querit`, `web-search`, `web-fetch`, `search-api`, `ai`, `llm`, `agent-harness`,
+`plugins`, ...) and the keywords below help search engines, package registries,
+and harness marketplaces index this repository. Search for **Querit** plus your
+harness to find the matching plugin.
+
+- **pi**: `pi-querit`, `pi-package`, `pi-extension`, Pi web search
+- **dsh**: `dsh-querit`, `dsh-plugin`, DeepSeek Harness web search, `ctx.web`
+- **opencode**: `opencode-querit`, `opencode-plugin`, OpenCode web search
+- **Querit**: Querit API, Querit search, Querit web search, live web search, page content retrieval
+- **Capabilities**: web search plugin, web fetch plugin, cited search results, search agent tools
+
 ## Repository layout
 
 Each directory is an independent npm package with its own version, CI, and
-release cycle. There is no root workspace: the two harnesses have entirely
+release cycle. There is no root workspace: the three harnesses have entirely
 different dependency trees, so each package keeps its own `package.json`,
 lockfile, and `node_modules`.
 
