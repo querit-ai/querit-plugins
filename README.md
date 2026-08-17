@@ -4,11 +4,13 @@ Official [Querit](https://www.querit.ai) search plugins for AI agent harnesses.
 
 [Querit](https://www.querit.ai) delivers real-time, authoritative web search results and clean page content for LLM applications. Each plugin in this repository wires one agent harness to the Querit API (`/v1/search` + `/v1/contents`) so your agent can search the live web and fetch pages — with cited sources, domain/region/language/time-range filters, and output that is always treated as untrusted web data.
 
-| Harness | Package | What it adds | Install |
-| --- | --- | --- | --- |
-| [Pi](https://github.com/earendil-works/pi) | `pi-querit` | `web_search` / `fetch_content` tools + `/querit-setup` wizard | `pi install npm:pi-querit` |
-| [DeepSeek Harness](https://www.npmjs.com/package/@deepseek-ai/cordis) | `dsh-querit` | Querit-backed search & fetch providers for the `ctx.web` seam | `dsh plugin --profile web add dsh-querit` |
-| [OpenCode](https://opencode.ai) | `opencode-querit` | `web_search` / `web_fetch` custom tools | `"plugin": ["opencode-querit"]` |
+| Harness | Package | Install |
+| --- | --- | --- |
+| [Pi](https://github.com/earendil-works/pi) | `pi-querit` | `pi install npm:pi-querit` |
+| [DeepSeek Harness](https://www.npmjs.com/package/@deepseek-ai/cordis) | `dsh-querit` | `dsh plugin --profile web add dsh-querit` |
+| [OpenCode](https://opencode.ai) | `opencode-querit` | `"plugin": ["opencode-querit"]` |
+
+How each plugin reads the API key and search defaults is covered in its own section below.
 
 ## Get an API key
 
