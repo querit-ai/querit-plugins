@@ -10,7 +10,6 @@ import type { WebFetchProvider, WebFetchResult, WebSearchProvider, WebSearchResu
 import { WebError } from "@deepseek-ai/dsh-web";
 import type { CredentialRef } from "@deepseek-ai/dsh-credentials";
 import {
-  DEFAULT_REQUEST_TIMEOUT_MS,
   QueritApiError,
   QueritClient,
   type QueritClientOptions,

@@ -68,7 +68,7 @@ export async function generateSearchSummary(
     ? AbortSignal.any([signal, deadlineController.signal])
     : deadlineController.signal;
 
-  const operation = performSummary(search, ctx, modelReference, completionSignal, completeFn, timeoutMs, thinkingLevel);
+  const operation = performSummary(search, ctx, modelReference, completionSignal, completeFn, thinkingLevel);
   void operation.catch(() => undefined);
 
   try {
@@ -137,7 +137,6 @@ async function performSummary(
   modelReference: string,
   signal: AbortSignal,
   completeFn: CompleteFunction,
-  timeoutMs: number,
   thinkingLevel?: QueritThinkingLevel,
 ): Promise<SummaryGenerationResult> {
   const { provider, id } = parseModelReference(modelReference);

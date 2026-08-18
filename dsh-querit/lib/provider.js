@@ -1,5 +1,5 @@
 import { WebError } from "@deepseek-ai/dsh-web";
-import { DEFAULT_REQUEST_TIMEOUT_MS, QueritApiError, QueritClient, } from "./client.js";
+import { QueritApiError, QueritClient, } from "./client.js";
 /** Stable id both providers register under. */
 export const QUERIT_PROVIDER_ID = "querit";
 export const COUNTRY_VALUES = [
