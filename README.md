@@ -44,7 +44,7 @@ See the [pi-querit README](./pi-querit/README.md) for the full tool reference.
 
 ## dsh-querit — DeepSeek Harness
 
-A provider package for the DeepSeek Harness `ctx.web` capability seam. The model-facing `web_search` / `web_fetch` tools keep working unchanged — this package only swaps their backend to Querit.
+A provider package for the DeepSeek Harness `ctx.web` capability seam. It does not register the model-facing `web_search` tool; the agent preset does. By default, it reuses the official `applyWebFetchTool` helper to register `web_fetch`, and routes both tools through Querit-backed providers.
 
 **Install**
 
@@ -135,9 +135,10 @@ cd dsh-querit && npm ci && npm run check && npm run build && npm test
 cd opencode-querit && npm ci && npm run check && npm run build && npm test
 ```
 
-Publishing is per package: bump the version, run `npm publish` from the package
-directory. Releases are tagged on GitHub with the package name prefix, e.g.
-`pi-querit@0.4.0`.
+Publishing is per package. From that package's directory, run
+`npm version <version> --no-git-tag-version` so `package.json` and
+`package-lock.json` stay in sync, then verify and run `npm publish`. Releases
+are tagged on GitHub with the package name prefix, e.g. `pi-querit@<version>`.
 
 ## License
 

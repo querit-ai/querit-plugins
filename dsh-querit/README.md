@@ -19,7 +19,7 @@ If the plugin loads without any resolvable key, the host log prints a one-time w
 
 There is no settings-page UI for out-of-tree plugins in the current harness version (the web settings API serves a fixed namespace whitelist), so all configuration is the composition patch plus the credentials store.
 
-This is an **implementation** package: it registers one search provider and one fetch provider into `ctx.web`, resolves the API key per operation through the optional `ctx.credentials` seam (environment fallback), and reuses [`@deepseek-ai/dsh-tool-web`](https://www.npmjs.com/package/@deepseek-ai/dsh-tool-web)'s `applyWebFetchTool` to register the model-facing `web_fetch` tool. That last step exists because in the web app the host `tool-web` row is disabled and the shipped presets keep `fetch: false` — this package is the one place that turns page retrieval on. Both providers share the stable id `querit`.
+This is an **implementation** package: it registers one search provider and one fetch provider into `ctx.web`. Per operation, it resolves the API key from the launching environment first, then the optional `ctx.credentials` seam, then literal config. It does not register the model-facing `web_search` tool (the agent preset does); by default, it reuses [`@deepseek-ai/dsh-tool-web`](https://www.npmjs.com/package/@deepseek-ai/dsh-tool-web)'s `applyWebFetchTool` to register `web_fetch`. That last step exists because in the web app the host `tool-web` row is disabled and the shipped presets keep `fetch: false` — this package is the one place that turns page retrieval on. Both providers share the stable id `querit`.
 
 ## Install and update
 
@@ -83,7 +83,7 @@ If a preset ever registers `web_fetch` itself (its `tool-web` row with `fetch: t
 | Key | Default | Meaning |
 |---|---|---|
 | `apiKey` | omitted | Literal Querit API key. Prefer `apiKeyEnv` so no secret enters configuration. The `apiKeyEnv` environment variable wins when both are set. |
-| `apiKeyEnv` | `QUERIT_API_KEY` | Credential reference resolved per operation through `ctx.credentials`, or from the process environment when that seam is absent. A missing value fails the call as `WEB_PROVIDER_CREDENTIAL_MISSING`. |
+| `apiKeyEnv` | `QUERIT_API_KEY` | Credential reference resolved per operation from the launching environment first, then through `ctx.credentials`; a literal `apiKey` is the final fallback. A missing value fails the call as `WEB_PROVIDER_CREDENTIAL_MISSING`. |
 | `baseURL` | `https://api.querit.ai` | Querit API base; `/v1/search` and `/v1/contents` are appended. Falls back to `$QUERIT_BASE_URL` from any environment layer. An unparseable value makes both providers unavailable. |
 | `timeoutMs` | `70000` | Per-request timeout in ms (minimum 1000). |
 | `count` | `5` | Result count used when the seam passes no `maxResults` bound (1–20; the API caps at 20). The `dsh-tool-web` layer always bounds searches, so this mainly serves direct seam callers. |

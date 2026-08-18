@@ -126,6 +126,7 @@ These are persistent defaults applied to every `web_search` call. They are store
 | `count` | `1` – `20` | API default (`5`) | Number of results per search. Can be overridden per call via the `count` parameter. |
 | `timeRange` | `d7` · `w2` · `m3` · `y1` | *(none — all time)* | Restrict results to the past 7 days, 2 weeks, 3 months, or 1 year. |
 | `includeContent` | `yes` / `no` | `no` | Include sentence-level content excerpts in results for richer context. |
+| `chunksPerDoc` | `1` – `3` | API default (`1`) | Content chunks requested per result. This advanced option is configured by editing `querit-search.json`; it is not exposed in the setup wizard. |
 | `countries` | `argentina` · `australia` · `brazil` · `canada` · `colombia` · `france` · `germany` · `india` · `indonesia` · `japan` · `mexico` · `nigeria` · `philippines` · `south korea` · `spain` · `united kingdom` · `united states` | *(none — global)* | Bias results toward specific countries. Comma-separated, multi-select. |
 | `languages` | `english` · `japanese` · `korean` · `german` · `french` · `spanish` · `portuguese` | *(none — all)* | Filter results by language. Comma-separated, multi-select. |
 | `includeDomains` | domain list | *(none — unrestricted)* | **Whitelist** — only these domains return results. |
@@ -149,6 +150,7 @@ These are persistent defaults applied to every `web_search` call. They are store
   "summaryThinkingLevel": "medium",
   "search": {
     "count": 5,
+    "chunksPerDoc": 1,
     "timeRange": "m3",
     "includeContent": false,
     "countries": ["united states"],
