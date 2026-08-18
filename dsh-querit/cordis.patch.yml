@@ -1,11 +1,11 @@
 # The dsh-querit bundle patch: applied as a profile layer after the base and
 # app bundles, so installing this package wires the Querit providers in
-# automatically — no cordis.patch.yml edits needed.
+# automatically — no cordis.patch.yml edits needed. Removing the package
+# (`dsh plugin remove dsh-querit`) drops this whole layer, so every entry
+# below — including the DeepSeek disable — reverts to the base behavior.
 #
 # A patch replaces the targeted row's whole `config`, so the `web` row below
-# restates every key it owns (search + fetch selection). The base layer's
-# `web-search-deepseek` row stays in place; the seam selects by id, so
-# switching back is a one-line patch (`searchProvider: deepseek-official`).
+# restates every key it owns (search + fetch selection).
 
 - insert:
     - id: web-search-querit
@@ -17,3 +17,9 @@
   config:
     searchProvider: querit
     fetchProvider: querit
+
+# This package IS the search backend: stop mounting the DeepSeek provider row.
+# Override with `- id: web-search-deepseek / disabled: false` in a later layer
+# (profile cordis.patch.yml) to re-enable it while keeping Querit selected.
+- id: web-search-deepseek
+  disabled: true

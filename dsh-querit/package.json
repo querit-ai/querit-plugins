@@ -1,7 +1,7 @@
 {
   "name": "dsh-querit",
   "description": "Querit-backed search and fetch providers for the DeepSeek Harness web capability seam (ctx.web)",
-  "version": "1.0.3",
+  "version": "1.0.4",
   "type": "module",
   "main": "lib/index.js",
   "types": "lib/index.d.ts",
@@ -13,6 +13,9 @@
     "./invariant": {
       "types": "./lib/invariant.d.ts",
       "default": "./lib/invariant.js"
+    },
+    "./client": {
+      "default": "./lib/card.js"
     },
     "./package.json": "./package.json"
   },
@@ -27,6 +30,15 @@
   "dsh": {
     "bundle": {
       "patch": "./cordis.patch.yml"
+    },
+    "client": {
+      "platform": "web",
+      "inject": [
+        "@deepseek-ai/dsh-client-connection",
+        "@deepseek-ai/dsh-client-locale",
+        "@deepseek-ai/dsh-client-ui-settings",
+        "@deepseek-ai/dsh-api-remotes"
+      ]
     }
   },
   "repository": {
@@ -45,19 +57,24 @@
   ],
   "scripts": {
     "check": "tsc -p tsconfig.check.json",
-    "build": "tsc -p tsconfig.json",
+    "build": "tsc -p tsconfig.json && node scripts/build-client.mjs",
     "test": "vitest run tests",
     "pack:check": "npm pack --dry-run",
     "prepack": "npm run check && npm test && npm run build"
   },
   "peerDependencies": {
     "@deepseek-ai/cordis": "^4.0.1",
+    "@deepseek-ai/dsh-api-remotes": "^0.1.0-rc.6",
+    "@deepseek-ai/dsh-client-connection": "^0.1.0-rc.6",
+    "@deepseek-ai/dsh-client-locale": "^0.1.0-rc.6",
+    "@deepseek-ai/dsh-client-ui-settings": "^0.1.0-rc.6",
     "@deepseek-ai/dsh-credentials": "^0.1.0-rc.6",
     "@deepseek-ai/dsh-invariants": "^0.1.0-rc.6",
     "@deepseek-ai/dsh-launch-environment": "^0.1.0-rc.6",
     "@deepseek-ai/dsh-settings": "^0.1.0-rc.6",
     "@deepseek-ai/dsh-tool-web": "^0.1.0-rc.6",
-    "@deepseek-ai/dsh-web": "^0.1.0-rc.6"
+    "@deepseek-ai/dsh-web": "^0.1.0-rc.6",
+    "react": "^18.2.0"
   },
   "peerDependenciesMeta": {
     "@deepseek-ai/cordis": {
@@ -80,6 +97,21 @@
     },
     "@deepseek-ai/dsh-web": {
       "optional": true
+    },
+    "@deepseek-ai/dsh-api-remotes": {
+      "optional": true
+    },
+    "@deepseek-ai/dsh-client-connection": {
+      "optional": true
+    },
+    "@deepseek-ai/dsh-client-locale": {
+      "optional": true
+    },
+    "@deepseek-ai/dsh-client-ui-settings": {
+      "optional": true
+    },
+    "react": {
+      "optional": true
     }
   },
   "dependencies": {
@@ -94,6 +126,8 @@
     "@deepseek-ai/dsh-tool-web": "^0.1.0-rc.6",
     "@deepseek-ai/dsh-web": "^0.1.0-rc.6",
     "@types/node": "^22.0.0",
+    "react": "^18.2.0",
+    "react-dom": "^18.3.1",
     "typescript": "^5.9.0",
     "vitest": "^4.0.0"
   },

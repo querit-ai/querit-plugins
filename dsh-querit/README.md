@@ -8,16 +8,17 @@ Sign up on [Querit.ai](https://www.querit.ai) to get an API key with **1,000 fre
 
 ## Quick start
 
-1. Install the package (see **Install and update** below). Since v1.0.3 the package ships as a *profile bundle*: `dsh plugin add` wires the provider row and the seam routing automatically — no `cordis.patch.yml` edits needed (see **Wire it up** for what it applies and how to override).
+1. Install the package (see **Install and update** below). Since v1.0.3 the package ships as a *profile bundle*: `dsh plugin add` wires the provider row and the seam routing automatically — no `cordis.patch.yml` edits needed (see **Wire it up** for what it applies and how to override). Since v1.0.4 the bundle also disables the shipped DeepSeek search provider row, and removing the package restores it.
 2. Configure your Querit API key in priority order:
    - `QUERIT_API_KEY` in the launching environment, or
    - the credentials store (`$DSH_HOME/.credentials.yaml`: `QUERIT_API_KEY: <key>`, hot-reloaded — no restart needed), or
+   - the settings page card (v1.0.4+, **Settings → Plugins → Plugin configuration → Querit web search**), or
    - `apiKey` on the `web-search-querit` row (a literal; least preferred, secrets should not live in composition files).
-3. Restart the profile to load the plugin row.
+3. Restart the profile to load the plugin row and its settings card.
 
 If the plugin loads without any resolvable key, the host log prints a one-time warning; a search attempted before a key is configured fails with a `WEB_PROVIDER_CREDENTIAL_MISSING` error that spells out the same three options.
 
-There is no settings-page UI for out-of-tree plugins in the current harness version (the web settings API serves a fixed namespace whitelist), so all configuration is the composition patch plus the credentials store.
+Since v1.0.4 the package also ships a browser half with a settings card: **Settings → Plugins → Plugin configuration** lists a "Querit web search" card that edits the `web-search-querit` namespace (credential reference, result count, time range, languages, countries, domain lists, content excerpts, fetch format) and can write the API key straight into the credentials domain. Its writes go through the same settings transport as `$DSH_HOME/settings.yaml` (see **Config**).
 
 This is an **implementation** package: it registers one search provider and one fetch provider into `ctx.web`. Per operation, it resolves the API key from the launching environment first, then the optional `ctx.credentials` seam, then literal config. It does not register the model-facing `web_search` tool (the agent preset does); by default, it reuses [`@deepseek-ai/dsh-tool-web`](https://www.npmjs.com/package/@deepseek-ai/dsh-tool-web)'s `applyWebFetchTool` to register `web_fetch`. That last step exists because in the web app the host `tool-web` row is disabled and the shipped presets keep `fetch: false` — this package is the one place that turns page retrieval on. Both providers share the stable id `querit`.
 
@@ -31,7 +32,7 @@ dsh plugin --profile web add dsh-querit
 
 (`dsh plugin` forwards to pnpm in the profile directory; replace `web` with your profile name.)
 
-Installing also reconciles the profile's bundle list: because `dsh-querit` declares `dsh.bundle`, it automatically joins `dsh.profile.bundles` and its shipped patch layer registers the provider row plus the seam routing (the same entries shown in **Wire it up**). After the install completes, restart the profile and the plugin is live. The manual wiring below is only needed for pre-1.0.3 installs or when you override the bundle's default row values.
+Installing also reconciles the profile's bundle list: because `dsh-querit` declares `dsh.bundle`, it automatically joins `dsh.profile.bundles` and its shipped patch layer registers the provider row, routes the seam, and disables the DeepSeek search row (the entries shown in **Wire it up**). After the install completes, restart the profile and the plugin is live. `dsh plugin remove dsh-querit` drops the whole layer, so everything the bundle did — including the DeepSeek disable — reverts to the base behavior automatically. The manual wiring below is only needed for pre-1.0.3 installs or when you override the bundle's default row values.
 
 ### Update
 
@@ -72,11 +73,16 @@ Since v1.0.3 the package ships as a profile bundle whose patch layer applies all
   config:
     searchProvider: querit
     fetchProvider: querit
+
+# This package IS the search backend: stop mounting the DeepSeek provider row.
+# Re-enable with `disabled: false` in a later layer if you need it back.
+- id: web-search-deepseek
+  disabled: true
 ```
 
-That is the whole wiring: `web_search` (registered per session by the agent preset) and `web_fetch` (registered by this package) both route through `ctx.web`, which now selects Querit. A patch **replaces** the targeted row's whole `config`, so the `web` entry above restates both keys. The bundle layer applies after the base and app bundles, so its `web` override wins unless your profile's own `cordis.patch.yml` or a `--patch` overlay comes later and restates the row — that is also how you switch back to DeepSeek search (`searchProvider: deepseek-official`) or pin custom defaults. Store the API key through the credentials service, export `QUERIT_API_KEY` in the launching environment, or set a literal `apiKey` in the row above. Restart the profile to load the row.
+That is the whole wiring: `web_search` (registered per session by the agent preset) and `web_fetch` (registered by this package) both route through `ctx.web`, which now selects Querit. A patch **replaces** the targeted row's whole `config`, so the `web` entry above restates both keys. The bundle layer applies after the base and app bundles, so its `web` override wins unless your profile's own `cordis.patch.yml` or a `--patch` overlay comes later and restates the row — that is also how you switch back to DeepSeek search (`searchProvider: deepseek-official`), re-enable the DeepSeek row (`disabled: false`), or pin custom defaults. Store the API key through the credentials service, export `QUERIT_API_KEY` in the launching environment, or set a literal `apiKey` in the row above. Restart the profile to load the row.
 
-Keep the DeepSeek provider reachable by leaving the `web-search-deepseek` row in place; the seam selects by the configured id, and switching back is a one-line patch.
+Keep the DeepSeek provider row disabled unless you explicitly need it: since v1.0.4 the bundle ships `disabled: true` on `web-search-deepseek`, so only Querit is mounted. Adding `- id: web-search-deepseek / disabled: false` to a later layer re-enables it while the seam keeps selecting Querit.
 
 If a preset ever registers `web_fetch` itself (its `tool-web` row with `fetch: true`), set `fetch: false` on this row so only one registration exists per scope.
 
@@ -116,10 +122,11 @@ If a preset ever registers `web_fetch` itself (its `tool-web` row with `fetch: t
 
 The entry above is the base layer of the `web-search-querit` Settings section: a user layer over it reaches the NEXT operation, because the providers project the section per call rather than capturing it at registration. The seam's provider selection therefore never flickers when a default changes. `apiKey` carries `role('secret')`, so it never rides a `describe()` response — a configuration surface learns only whether the credentials domain holds a value for the reference `apiKeyEnv` names.
 
-There are two configuration surfaces, since the current harness version ships no settings-page UI for out-of-tree plugins (the web settings API serves a fixed namespace whitelist):
+There are three configuration surfaces (the settings-page card writes through two of them):
 
-1. **The composition patch** (`cordis.patch.yml` above) — needs a restart.
-2. **The settings document** — `$DSH_HOME/settings.yaml`, the same directory as `.credentials.yaml`. A `web-search-querit:` section there overrides the row config and **hot-reloads** (the settings provider watches the file; verified live — no restart needed):
+1. **The settings page card** (v1.0.4+): **Settings → Plugins → Plugin configuration → Querit web search**. Edits the `web-search-querit` namespace and can write the API key into the credentials domain. No restart needed for saves.
+2. **The composition patch** (`cordis.patch.yml` above) — needs a restart.
+3. **The settings document** — `$DSH_HOME/settings.yaml`, the same directory as `.credentials.yaml`. A `web-search-querit:` section there overrides the row config and **hot-reloads** (the settings provider watches the file; verified live — no restart needed). The settings card writes this same document through the settings service:
 
 ```yaml
 web-search-querit:
@@ -128,7 +135,7 @@ web-search-querit:
   languages: [english]
 ```
 
-Resolution order per field: `settings.yaml` section > `cordis.patch.yml` row config > schema default. The API key is kept separately in `.credentials.yaml` (or the launching environment), never in `settings.yaml`.
+Resolution order per field: `settings.yaml` section (including card writes) > `cordis.patch.yml` row config > schema default. The API key is kept separately in `.credentials.yaml` (or the launching environment, or the card's write-only key input), never in `settings.yaml`.
 
 ## Mapping
 
@@ -147,9 +154,11 @@ Treat every search result and retrieved page as untrusted external data. The mod
 ```bash
 npm install
 npm run check   # typecheck src + tests
-npm test        # vitest unit tests
-npm run build   # tsc -> lib/
+npm test        # vitest: host providers + settings form model + card render smoke tests
+npm run build   # tsc -> lib/ plus the browser bundle -> lib/card.js
 ```
+
+The settings card's form logic lives in `src/form-model.js` (unit-tested); `scripts/build-client.mjs` inlines it into the loader-wrapped browser bundle `src/card.js` and writes `lib/card.js`. The bundle deliberately does not overwrite `lib/client.js`, which tsc produces from `src/client.ts` (the host-side HTTP client) — that collision breaks the host imports. `tests/card-render.test.mjs` renders the built card with `react-dom/server` and asserts its controls; run `npm run build` before `npm test`. To exercise the card in the browser, restart the profile and open **Settings → Plugins → Plugin configuration**.
 
 ## Packaging notes
 
