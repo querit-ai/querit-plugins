@@ -8,7 +8,7 @@ Sign up on [Querit.ai](https://www.querit.ai) to get an API key with **1,000 fre
 
 ## Quick start
 
-1. Install the package (see **Install and update** below) and add the two patch blocks from **Wire it up** to your profile's `cordis.patch.yml`.
+1. Install the package (see **Install and update** below). Since v1.0.3 the package ships as a *profile bundle*: `dsh plugin add` wires the provider row and the seam routing automatically — no `cordis.patch.yml` edits needed (see **Wire it up** for what it applies and how to override).
 2. Configure your Querit API key in priority order:
    - `QUERIT_API_KEY` in the launching environment, or
    - the credentials store (`$DSH_HOME/.credentials.yaml`: `QUERIT_API_KEY: <key>`, hot-reloaded — no restart needed), or
@@ -30,6 +30,8 @@ dsh plugin --profile web add dsh-querit
 ```
 
 (`dsh plugin` forwards to pnpm in the profile directory; replace `web` with your profile name.)
+
+Installing also reconciles the profile's bundle list: because `dsh-querit` declares `dsh.bundle`, it automatically joins `dsh.profile.bundles` and its shipped patch layer registers the provider row plus the seam routing (the same entries shown in **Wire it up**). After the install completes, restart the profile and the plugin is live. The manual wiring below is only needed for pre-1.0.3 installs or when you override the bundle's default row values.
 
 ### Update
 
@@ -55,7 +57,7 @@ Only when pnpm is unavailable: unpack the tarball into `<profile>/node_modules/d
 
 ## Wire it up
 
-Edit the profile's `cordis.patch.yml` (`$DSH_HOME/profiles/<profile>/cordis.patch.yml`):
+Since v1.0.3 the package ships as a profile bundle whose patch layer applies all of this automatically. For reference, the entries it applies (kept in the package as `cordis.patch.yml`) are:
 
 ```yaml
 # Add the provider row (registers the Querit providers AND the web_fetch tool).
@@ -72,7 +74,7 @@ Edit the profile's `cordis.patch.yml` (`$DSH_HOME/profiles/<profile>/cordis.patc
     fetchProvider: querit
 ```
 
-That is the whole wiring: `web_search` (registered per session by the agent preset) and `web_fetch` (registered by this package) both route through `ctx.web`, which now selects Querit. A patch **replaces** the targeted row's whole `config`, so restate every key you need. Store the API key through the credentials service, export `QUERIT_API_KEY` in the launching environment, or set a literal `apiKey` in the row above. Restart the profile to load the new row.
+That is the whole wiring: `web_search` (registered per session by the agent preset) and `web_fetch` (registered by this package) both route through `ctx.web`, which now selects Querit. A patch **replaces** the targeted row's whole `config`, so the `web` entry above restates both keys. The bundle layer applies after the base and app bundles, so its `web` override wins unless your profile's own `cordis.patch.yml` or a `--patch` overlay comes later and restates the row — that is also how you switch back to DeepSeek search (`searchProvider: deepseek-official`) or pin custom defaults. Store the API key through the credentials service, export `QUERIT_API_KEY` in the launching environment, or set a literal `apiKey` in the row above. Restart the profile to load the row.
 
 Keep the DeepSeek provider reachable by leaving the `web-search-deepseek` row in place; the seam selects by the configured id, and switching back is a one-line patch.
 

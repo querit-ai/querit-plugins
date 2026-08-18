@@ -1,0 +1,19 @@
+# The dsh-querit bundle patch: applied as a profile layer after the base and
+# app bundles, so installing this package wires the Querit providers in
+# automatically — no cordis.patch.yml edits needed.
+#
+# A patch replaces the targeted row's whole `config`, so the `web` row below
+# restates every key it owns (search + fetch selection). The base layer's
+# `web-search-deepseek` row stays in place; the seam selects by id, so
+# switching back is a one-line patch (`searchProvider: deepseek-official`).
+
+- insert:
+    - id: web-search-querit
+      name: 'dsh-querit'
+      config:
+        apiKeyEnv: QUERIT_API_KEY
+
+- id: web
+  config:
+    searchProvider: querit
+    fetchProvider: querit
