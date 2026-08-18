@@ -1,10 +1,11 @@
 /**
  * Register Querit-backed search and fetch providers in `ctx.web`.
  * Both providers call the public Querit API (`POST /v1/search`,
- * `POST /v1/contents`) with a Bearer key resolved per operation through the
- * optional `ctx.credentials` seam, falling back to the launching environment.
- * The model-facing `web_search` / `web_fetch` tools keep routing through the
- * seam; this package never registers a tool.
+ * `POST /v1/contents`) with a Bearer key resolved per operation from the
+ * launching environment, then optional `ctx.credentials`, then literal config.
+ * The agent preset registers model-facing `web_search`; this package does not.
+ * By default, it reuses the official `applyWebFetchTool` helper to register
+ * `web_fetch`, and both tools route through the seam.
  * @module dsh-querit
  */
 import type { Context } from "@deepseek-ai/cordis";

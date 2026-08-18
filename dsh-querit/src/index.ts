@@ -1,10 +1,11 @@
 /**
  * Register Querit-backed search and fetch providers in `ctx.web`.
  * Both providers call the public Querit API (`POST /v1/search`,
- * `POST /v1/contents`) with a Bearer key resolved per operation through the
- * optional `ctx.credentials` seam, falling back to the launching environment.
- * The model-facing `web_search` / `web_fetch` tools keep routing through the
- * seam; this package never registers a tool.
+ * `POST /v1/contents`) with a Bearer key resolved per operation from the
+ * launching environment, then optional `ctx.credentials`, then literal config.
+ * The agent preset registers model-facing `web_search`; this package does not.
+ * By default, it reuses the official `applyWebFetchTool` helper to register
+ * `web_fetch`, and both tools route through the seam.
  * @module dsh-querit
  */
 import type { Context } from "@deepseek-ai/cordis";
@@ -130,7 +131,6 @@ export function resolveOptions(ctx: Context, config: Config): QueritProviderOpti
   const environment = launchEnvironmentOf(ctx);
 
   return {
-    ...(literalApiKey === undefined ? {} : { apiKey: literalApiKey }),
     resolveApiKey: () => resolveQueritApiKey(ctx, apiKeyEnv, literalApiKey),
     apiKeyEnv,
     baseURL: (config.baseURL ?? environment.get(BASE_URL_ENV)?.value ?? QUERIT_API_BASE_URL).replace(/\/+$/, ""),
@@ -211,7 +211,10 @@ export async function resolveQueritApiKey(
   const ambient = launchEnvironmentOf(ctx).get(apiKeyEnv);
   if (ambient !== undefined && ambient.value.length > 0) return ambient.value;
   const credentials = ctx.get("credentials");
-  if (credentials !== undefined) return (await credentials.resolve(apiKeyEnv))?.value;
+  if (credentials !== undefined) {
+    const stored = await credentials.resolve(apiKeyEnv);
+    if (stored !== undefined && stored.value.length > 0) return stored.value;
+  }
   return literalApiKey !== undefined && literalApiKey.length > 0 ? literalApiKey : undefined;
 }
 

@@ -49,7 +49,6 @@ export function resolveOptions(ctx, config) {
         : undefined;
     const environment = launchEnvironmentOf(ctx);
     return {
-        ...(literalApiKey === undefined ? {} : { apiKey: literalApiKey }),
         resolveApiKey: () => resolveQueritApiKey(ctx, apiKeyEnv, literalApiKey),
         apiKeyEnv,
         baseURL: (config.baseURL ?? environment.get(BASE_URL_ENV)?.value ?? QUERIT_API_BASE_URL).replace(/\/+$/, ""),
@@ -118,8 +117,11 @@ export async function resolveQueritApiKey(ctx, apiKeyEnv, literalApiKey) {
     if (ambient !== undefined && ambient.value.length > 0)
         return ambient.value;
     const credentials = ctx.get("credentials");
-    if (credentials !== undefined)
-        return (await credentials.resolve(apiKeyEnv))?.value;
+    if (credentials !== undefined) {
+        const stored = await credentials.resolve(apiKeyEnv);
+        if (stored !== undefined && stored.value.length > 0)
+            return stored.value;
+    }
     return literalApiKey !== undefined && literalApiKey.length > 0 ? literalApiKey : undefined;
 }
 /**

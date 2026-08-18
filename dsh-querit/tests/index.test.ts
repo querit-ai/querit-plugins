@@ -10,7 +10,7 @@ import {
   resolveQueritApiKey,
   validateSection,
 } from "../src/index.js";
-import { QUERIT_PROVIDER_ID } from "../src/provider.js";
+import { QUERIT_PROVIDER_ID, QueritSearchProvider } from "../src/provider.js";
 
 function fakeContext(overrides: Record<string, unknown> = {}): Context {
   const services = new Map<string, unknown>(Object.entries(overrides));
@@ -66,6 +66,40 @@ describe("resolveOptions", () => {
     expect(options.includeContent).toBe(false);
     expect(options.fetchMaxChars).toBe(8_000);
     expect(await options.resolveApiKey?.()).toBeUndefined();
+  });
+
+  it("preserves environment, credentials, then literal key priority through the provider", async () => {
+    let environmentKey: string | undefined = "sk-env";
+    let storedKey: string | undefined = "sk-stored";
+    const selectedKeys: string[] = [];
+    const ctx = fakeContext({
+      launchEnvironment: {
+        get: (name: string) => name === DEFAULT_API_KEY_ENV && environmentKey !== undefined
+          ? { value: environmentKey }
+          : undefined,
+      },
+      credentials: {
+        resolve: async () => storedKey === undefined ? undefined : { value: storedKey },
+      },
+    });
+    const provider = new QueritSearchProvider(() => ({
+      ...resolveOptions(ctx, Config({ apiKey: " sk-literal " })),
+      clientFactory: ({ apiKey }) => {
+        selectedKeys.push(apiKey);
+        return {
+          search: async ({ query }) => ({ query, results: [] }),
+          contents: async () => ({ results: [], statuses: [] }),
+        };
+      },
+    }));
+
+    await provider.search({ query: "environment" });
+    environmentKey = undefined;
+    await provider.search({ query: "credentials" });
+    storedKey = undefined;
+    await provider.search({ query: "literal" });
+
+    expect(selectedKeys).toEqual(["sk-env", "sk-stored", "sk-literal"]);
   });
 
   it("prefers the environment base URL over the constant", () => {
@@ -209,7 +243,12 @@ describe("apply", () => {
 
   it("warns on first load when no API key is configured", async () => {
     const { web, tools, systemPrompt } = fakeWebRegistries();
-    const ctx = fakeContext({ web, tools, systemPrompt });
+    const ctx = fakeContext({
+      web,
+      tools,
+      systemPrompt,
+      launchEnvironment: { get: () => undefined },
+    });
 
     await apply(ctx, Config({}));
 
@@ -218,9 +257,15 @@ describe("apply", () => {
     expect(String(warn.mock.calls[0]![0])).toContain("QUERIT_API_KEY");
   });
 
-  it("does not warn on first load when a literal key is present", async () => {
+  it("does not warn on first load when a literal key follows an empty credentials lookup", async () => {
     const { web, tools, systemPrompt } = fakeWebRegistries();
-    const ctx = fakeContext({ web, tools, systemPrompt });
+    const ctx = fakeContext({
+      web,
+      tools,
+      systemPrompt,
+      launchEnvironment: { get: () => undefined },
+      credentials: { resolve: async () => undefined },
+    });
 
     await apply(ctx, Config({ apiKey: "sk-literal" }));
 
@@ -234,6 +279,7 @@ describe("apply", () => {
       web,
       tools,
       systemPrompt,
+      launchEnvironment: { get: () => undefined },
       credentials: { resolve: async () => ({ value: "sk-stored" }) },
     });
 
