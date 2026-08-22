@@ -6,8 +6,6 @@
 ![platform](https://img.shields.io/badge/platform-Windows%20%7C%20macOS%20%7C%20Linux-lightgrey)
 ![pi](https://img.shields.io/badge/pi-extension-orange)
 
-English | [中文](./README-zh.md)
-
 A focused [Pi](https://github.com/earendil-works/pi) extension that gives your agent live web search and page fetching through [Querit](https://www.querit.ai).
 
 ## Why Querit?

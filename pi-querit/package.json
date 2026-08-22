@@ -1,6 +1,6 @@
 {
   "name": "pi-querit",
-  "version": "1.0.2",
+  "version": "1.0.3",
   "description": "Querit web search and content retrieval tools for the Pi coding agent",
   "type": "module",
   "license": "MIT",
@@ -24,7 +24,6 @@
   "files": [
     "src",
     "README.md",
-    "README-zh.md",
     "LICENSE"
   ],
   "pi": {
