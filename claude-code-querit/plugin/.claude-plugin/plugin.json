@@ -1,0 +1,30 @@
+{
+  "$schema": "https://json.schemastore.org/claude-code-plugin-manifest.json",
+  "name": "querit",
+  "displayName": "Querit Web Research",
+  "version": "1.0.0",
+  "description": "Live web search, clean page retrieval, and citation-focused research for Claude Code.",
+  "author": {
+    "name": "QUERIT PRIVATE LIMITED",
+    "url": "https://www.querit.ai"
+  },
+  "homepage": "https://www.querit.ai",
+  "repository": "https://github.com/querit-ai/querit-plugins",
+  "license": "MIT",
+  "keywords": [
+    "querit",
+    "web-search",
+    "research",
+    "citations",
+    "mcp"
+  ],
+  "userConfig": {
+    "api_key": {
+      "type": "string",
+      "title": "Querit API key",
+      "description": "API key from querit.ai. Stored as a sensitive Claude Code plugin option.",
+      "required": true,
+      "sensitive": true
+    }
+  }
+}

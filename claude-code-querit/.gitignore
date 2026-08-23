@@ -1,0 +1,14 @@
+# Local dependencies and generated package archives.
+node_modules/
+*.tgz
+*.log
+coverage/
+
+# Never commit local credentials.
+.env
+.env.*
+dev-settings.json
+
+# plugin/ holds everything Claude Code copies on install, and deliberately has no
+# package.json so Claude Code skips the dependency install. plugin/dist/server.js
+# is committed because installs run no build step; rebuild it with `npm run build`.

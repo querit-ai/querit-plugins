@@ -1,0 +1,18 @@
+{
+  "$schema": "https://json.schemastore.org/claude-code-marketplace.json",
+  "name": "querit",
+  "description": "Official Querit web search and page retrieval plugins for Claude Code.",
+  "owner": {
+    "name": "QUERIT PRIVATE LIMITED",
+    "url": "https://www.querit.ai"
+  },
+  "plugins": [
+    {
+      "name": "querit",
+      "source": "./claude-code-querit/plugin",
+      "description": "Live web search, clean page retrieval, and citation-focused research for Claude Code.",
+      "category": "research",
+      "tags": ["web-search", "research", "citations", "mcp"]
+    }
+  ]
+}

@@ -1,0 +1,42 @@
+name: claude-code-querit CI
+
+on:
+  pull_request:
+    paths:
+      - 'claude-code-querit/**'
+      - '.github/workflows/claude-code-querit-ci.yml'
+  push:
+    branches:
+      - main
+    paths:
+      - 'claude-code-querit/**'
+      - '.github/workflows/claude-code-querit-ci.yml'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: claude-code-querit-ci-${{ github.ref }}
+  cancel-in-progress: true
+
+defaults:
+  run:
+    working-directory: claude-code-querit
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22.19.0
+          cache: npm
+          cache-dependency-path: claude-code-querit/package-lock.json
+      - run: npm ci
+      - run: npm run check
+      - run: npm run build
+      - run: git diff --exit-code -- plugin/dist/server.js
+      - run: npm test
+      - run: npm run verify:plugin
+      - run: npm pack --dry-run

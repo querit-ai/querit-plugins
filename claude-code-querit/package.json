@@ -1,0 +1,56 @@
+{
+  "name": "claude-code-querit",
+  "version": "1.0.0",
+  "description": "Querit web search and content retrieval plugin for Claude Code",
+  "type": "module",
+  "license": "MIT",
+  "author": "QUERIT PRIVATE LIMITED",
+  "homepage": "https://www.querit.ai",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/querit-ai/querit-plugins.git",
+    "directory": "claude-code-querit"
+  },
+  "bugs": {
+    "url": "https://github.com/querit-ai/querit-plugins/issues"
+  },
+  "keywords": [
+    "claude-code",
+    "claude-code-plugin",
+    "mcp",
+    "querit",
+    "web-search",
+    "ai",
+    "llm"
+  ],
+  "files": [
+    "plugin",
+    "README.md",
+    "LICENSE"
+  ],
+  "scripts": {
+    "check": "tsc -p tsconfig.check.json",
+    "test": "vitest run tests",
+    "test:live": "tsx scripts/live-smoke.ts",
+    "build": "tsx scripts/build.ts",
+    "verify:plugin": "tsx scripts/verify-plugin.ts",
+    "verify": "npm run check && npm run build && npm test && npm run verify:plugin",
+    "pack": "npm pack --dry-run --ignore-scripts",
+    "prepack": "npm run verify"
+  },
+  "devDependencies": {
+    "@modelcontextprotocol/sdk": "^1.30.0",
+    "@types/node": "^22.19.0",
+    "esbuild": "^0.28.2",
+    "tsx": "^4.20.0",
+    "typescript": "^5.9.0",
+    "vitest": "^4.1.0",
+    "zod": "^4.4.3"
+  },
+  "engines": {
+    "node": ">=22.19.0"
+  },
+  "publishConfig": {
+    "access": "public"
+  }
+}
