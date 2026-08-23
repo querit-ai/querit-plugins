@@ -1,0 +1,54 @@
+{
+  "name": "zapier-querit",
+  "version": "1.0.0",
+  "description": "Querit live web search integration for Zapier",
+  "main": "index.js",
+  "private": true,
+  "license": "MIT",
+  "author": "QUERIT PRIVATE LIMITED",
+  "homepage": "https://www.querit.ai",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/querit-ai/querit-plugins.git",
+    "directory": "zapier-querit"
+  },
+  "bugs": {
+    "url": "https://github.com/querit-ai/querit-plugins/issues"
+  },
+  "keywords": [
+    "zapier",
+    "querit",
+    "web-search",
+    "search"
+  ],
+  "files": [
+    "authentication.js",
+    "index.js",
+    "lib",
+    "searches",
+    "README.md",
+    "LICENSE"
+  ],
+  "scripts": {
+    "test": "jest --runInBand --testTimeout=10000",
+    "validate": "zapier-platform validate --without-style",
+    "check": "npm test && npm run validate",
+    "audit:production": "npm audit --omit=dev --audit-level=high --registry=https://registry.npmjs.org",
+    "build": "zapier-platform build --skip-validation --skip-dep-install",
+    "pack:check": "npm pack --dry-run"
+  },
+  "dependencies": {
+    "zapier-platform-core": "19.1.0"
+  },
+  "devDependencies": {
+    "jest": "29.7.0",
+    "nock": "14.0.17",
+    "zapier-platform-cli": "19.1.0"
+  },
+  "overrides": {
+    "form-data": "4.0.6"
+  },
+  "engines": {
+    "node": ">=22"
+  }
+}
