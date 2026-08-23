@@ -1,20 +1,29 @@
 # querit-plugins
 
-Official [Querit](https://www.querit.ai) search plugins for AI agent harnesses.
+Official [Querit](https://www.querit.ai) search integrations for automation and AI agent platforms.
 
-[Querit](https://www.querit.ai) delivers real-time, authoritative web search results and clean page content for LLM applications. Each plugin in this repository wires one agent harness to the Querit API (`/v1/search` + `/v1/contents`) so your agent can search the live web and fetch pages — with cited sources, domain/region/language/time-range filters, and output that is always treated as untrusted web data.
+[Querit](https://www.querit.ai) delivers real-time, authoritative web search results and clean page content for LLM applications. Each integration in this repository connects one platform to the Querit API (`/v1/search` + `/v1/contents`) for live web search and page fetching — with cited sources, domain/region/language/time-range filters, and output that is always treated as untrusted web data.
 
-| Harness | Package | Install |
+| Platform | Package | Install |
 | --- | --- | --- |
 | [Pi](https://github.com/earendil-works/pi) | `pi-querit` | `pi install npm:pi-querit` |
 | [DeepSeek Harness](https://www.npmjs.com/package/@deepseek-ai/cordis) | `dsh-querit` | `dsh plugin --profile web add dsh-querit` |
 | [OpenCode](https://opencode.ai) | `opencode-querit` | `"plugin": ["opencode-querit"]` |
+| [Claude Code](https://code.claude.com/docs/en/plugins) | `claude-code-querit` | `/plugin marketplace add querit-ai/querit-plugins` |
+| [n8n](https://n8n.io) | `n8n-nodes-querit` | Install as an n8n community node |
 
-How each plugin reads the API key and search defaults is covered in its own section below.
+Two more integrations live in this repository but are not generally available yet:
+
+| Platform | Directory | Status |
+| --- | --- | --- |
+| [Zapier](https://zapier.com) | `zapier-querit/` | Complete and locally validated; awaiting registration and Zapier public review |
+| [Browserbase](https://www.browserbase.com) | `browserbase-querit-demo/` | Reference demo, not a published package |
+
+How each integration reads the API key and search defaults is covered in its own section below.
 
 ## Get an API key
 
-Sign up on [Querit.ai](https://www.querit.ai) to get an API key with **1,000 free API calls per month** — no credit card required. The same key works for all three plugins.
+Sign up on [Querit.ai](https://www.querit.ai) to get an API key with **1,000 free API calls per month** — no credit card required. The same key works for all integrations.
 
 ## pi-querit — Pi
 
@@ -111,18 +120,62 @@ Search defaults and fetch behavior are configured the same way (`count`, `timeRa
 
 See the [opencode-querit README](./opencode-querit/README.md) for the full config table and local-testing instructions.
 
+## claude-code-querit — Claude Code
+
+A Claude Code plugin that bundles a stdio MCP server exposing `web_search` and `fetch_content`, plus a `/querit:research` skill for source-grounded answers with citations.
+
+**Install**
+
+```text
+/plugin marketplace add querit-ai/querit-plugins
+/plugin install querit@querit
+```
+
+**API key** — Claude Code prompts for the plugin's required `api_key` option when you install or enable the plugin.
+
+- **Where the key lives:** the option is declared `sensitive`, so Claude Code stores it in the macOS Keychain, or in `~/.claude/.credentials.json` on Windows and Linux where no supported keychain exists. It never lands in `settings.json`.
+- **How the server receives it:** `.mcp.json` substitutes the stored value into the `CLAUDE_PLUGIN_OPTION_API_KEY` environment variable of the MCP server process only.
+- **Change it later:** run `/plugin`, open the Querit plugin, and edit `api_key`. Non-interactively, `claude plugin install querit@querit --config api_key=<key>`.
+- **CI / local development alternative:** set the `QUERIT_API_KEY` environment variable. The plugin option takes precedence when both are present.
+- **Never** put the key in `.mcp.json`, source files, shell history, chat, or logs. Tool errors redact the active key before Claude sees them.
+
+Claude Code does not start a plugin's MCP server while a required option is unset, so configure `api_key` before expecting the Querit tools to appear in `/mcp`.
+
+See the [claude-code-querit README](./claude-code-querit/README.md) for the full tool reference and the safety limits.
+
+## n8n-nodes-querit — n8n
+
+An n8n community node with **Search Web** and **Fetch Content** operations, native paired-item and `Continue On Fail` handling, and AI-tool support.
+
+Install `n8n-nodes-querit` through n8n's community-node interface, then create a **Querit API** credential and paste in the API key. n8n stores it as an encrypted credential; the node never writes it into workflow JSON or execution data. See the [n8n-nodes-querit README](./n8n-nodes-querit/README.md) for operation details and development instructions.
+
+## zapier-querit — Zapier
+
+A Zapier Platform CLI integration with one Search action, **Find Web Search Results**. Authentication is a masked custom API-key field, tested with a fixed one-result `POST /v1/search`.
+
+The integration is not published to Zapier's app directory yet. Registration, the private test push, and public review all require the company-owned Zapier developer account; the [zapier-querit README](./zapier-querit/README.md) carries the full handoff checklist.
+
+## browserbase-querit-demo — Browserbase
+
+A reference demo, not an installable package: it searches with Querit, then opens the top result in a Browserbase cloud browser through Playwright `connectOverCDP` and saves a screenshot as evidence. It needs both `QUERIT_API_KEY` and `BROWSERBASE_API_KEY` in the environment and deliberately does not read a `.env` file. See the [browserbase-querit-demo README](./browserbase-querit-demo/README.md).
+
 ## Repository layout
 
 Each directory is an independent npm package with its own version, CI, and
-release cycle. There is no root workspace: the three harnesses have entirely
-different dependency trees, so each package keeps its own `package.json`,
+release cycle. There is no root workspace: the integrations have independent
+dependency trees, so each package keeps its own `package.json`,
 lockfile, and `node_modules`.
 
 ```text
 querit-plugins/
-├── pi-querit/      # Pi extension (TypeScript, no build step)
-├── dsh-querit/     # DeepSeek Harness provider package (compiled lib/ committed)
-└── opencode-querit # OpenCode plugin (compiled lib/ committed)
+├── .claude-plugin/            # Claude Code marketplace catalog
+├── pi-querit/                 # Pi extension (TypeScript, no build step)
+├── dsh-querit/                # DeepSeek Harness provider package (compiled lib/ committed)
+├── opencode-querit/           # OpenCode plugin (compiled lib/ committed)
+├── claude-code-querit/        # Claude Code plugin (installable payload in plugin/)
+├── n8n-nodes-querit/          # n8n community node (compiled for publishing)
+├── zapier-querit/             # Zapier CLI integration (not published)
+└── browserbase-querit-demo/   # Browserbase reference demo (not published)
 ```
 
 ## Development
@@ -133,6 +186,17 @@ Work inside a package directory; the root has no scripts:
 cd pi-querit && npm ci && npm run check && npm test
 cd dsh-querit && npm ci && npm run check && npm run build && npm test
 cd opencode-querit && npm ci && npm run check && npm run build && npm test
+cd claude-code-querit && npm ci && npm run verify
+cd n8n-nodes-querit && npm ci --ignore-scripts && npm run check && npm run lint && npm test && npm run build
+cd zapier-querit && npm ci && npm run check && npm run build
+cd browserbase-querit-demo && npm ci && npm run check && npm test && npm run build
+```
+
+The Claude Code marketplace catalog is validated separately from the repository root:
+
+```bash
+claude plugin validate . --strict
+claude plugin validate ./claude-code-querit/plugin --strict
 ```
 
 Publishing is per package. From that package's directory, run
