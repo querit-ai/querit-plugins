@@ -38,10 +38,10 @@ Calls `POST https://api.querit.ai/v1/search`.
 | ----------------- | -------- | ----------------------------------------------------------------------------------- |
 | Query             | Yes      | Search query, up to 1,000 characters                                                |
 | Count             | No       | Maximum results, from 1 to 20; default `5`                                          |
-| Chunks Per Result | No       | Sentence-level excerpts per result, from 1 to 3                                     |
+| Chunks Per Result | No       | Sentence-level excerpts per result, from 1 to 3; default `1`                        |
 | Countries         | No       | Country targeting from Querit's supported list                                      |
 | Exclude Domains   | No       | Comma-separated domain blacklist                                                    |
-| Include Content   | No       | Requests sentence-level excerpts                                                    |
+| Include Content   | No       | Requests sentence-level excerpts; default `false`                                   |
 | Include Domains   | No       | Comma-separated domain whitelist                                                    |
 | Languages         | No       | Language filters from Querit's supported list                                       |
 | Time Range        | No       | Relative range (`d7`, `w2`, `m3`, `y1`) or inclusive `YYYY-MM-DDtoYYYY-MM-DD` range |
@@ -83,12 +83,15 @@ Import [`examples/querit-search-and-fetch.workflow.json`](./examples/querit-sear
 - n8n / `n8n-workflow` `2.16.0` or later
 - Developed and type-checked against `n8n-workflow` `2.35.3`
 
+`peerDependencies` declares `n8n-workflow: "*"` on purpose so the host n8n installation resolves the version it already ships. npm therefore does not enforce the `2.16.0` floor; it is the version that first provides the request options this node relies on.
+
 The package intentionally targets supported Node 22 rather than untested newer Node majors.
 
 ## Development
 
 ```bash
 npm ci --ignore-scripts
+npm run format:check
 npm run check
 npm run lint
 npm test
@@ -96,16 +99,17 @@ npm run build
 npm run pack
 ```
 
-| Script            | Purpose                                                                             |
-| ----------------- | ----------------------------------------------------------------------------------- |
-| `npm run check`   | Strict TypeScript check for source and tests                                        |
-| `npm run lint`    | Official strict `n8n-node lint` checks                                              |
-| `npm test`        | Pure helper and practical node behavior tests                                       |
-| `npm run build`   | Build nodes, credentials, metadata, and icons with `n8n-node`                       |
-| `npm run dev`     | Start n8n with hot reload                                                           |
-| `npm run scan`    | Scan the published npm package with `@n8n/scan-community-package`                   |
-| `npm run pack`    | Build and inspect the npm tarball without publishing                                |
-| `npm run release` | Create the version commit/tag locally, or publish with provenance in GitHub Actions |
+| Script                 | Purpose                                                                             |
+| ---------------------- | ----------------------------------------------------------------------------------- |
+| `npm run format:check` | Prettier check that CI enforces; `npm run format` rewrites the files                |
+| `npm run check`        | Strict TypeScript check for source and tests                                        |
+| `npm run lint`         | Official strict `n8n-node lint` checks                                              |
+| `npm test`             | Pure helper and practical node behavior tests                                       |
+| `npm run build`        | Build nodes, credentials, metadata, and icons with `n8n-node`                       |
+| `npm run dev`          | Start n8n with hot reload                                                           |
+| `npm run scan`         | Scan the published npm package with `@n8n/scan-community-package`                   |
+| `npm run pack`         | Build and inspect the npm tarball without publishing                                |
+| `npm run release`      | Create the version commit/tag locally, or publish with provenance in GitHub Actions |
 
 The n8n development toolchain does not require transitive dependency lifecycle scripts, so installs use `npm ci --ignore-scripts`. The official community scanner downloads from npm; it cannot scan an unpublished local package. Run `npm run scan` after the version is visible in the npm registry.
 

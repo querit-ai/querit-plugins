@@ -53,6 +53,8 @@ $env:BROWSERBASE_API_KEY = "your-browserbase-key"
 npm start -- "Browserbase Playwright documentation"
 ```
 
+The search query must be 1–500 characters; anything longer fails with `INVALID_QUERY` before any network call.
+
 `.env.example` documents the two variable names with blank values. The application does not load `.env` files automatically. Never pass keys in the query or commit a populated environment file.
 
 ## Output

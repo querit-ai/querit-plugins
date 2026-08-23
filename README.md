@@ -189,7 +189,7 @@ cd opencode-querit && npm ci && npm run check && npm run build && npm test
 cd claude-code-querit && npm ci && npm run verify
 cd n8n-nodes-querit && npm ci --ignore-scripts && npm run check && npm run lint && npm test && npm run build
 cd zapier-querit && npm ci && npm run check && npm run build
-cd browserbase-querit-demo && npm ci && npm run check && npm test && npm run build
+cd browserbase-querit-demo && npm ci && npm run check && npm test && npm run build && npm run pack
 ```
 
 The Claude Code marketplace catalog is validated separately from the repository root:

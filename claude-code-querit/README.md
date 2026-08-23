@@ -14,7 +14,7 @@ Sign up at [Querit.ai](https://www.querit.ai) to get an API key with **1,000 fre
 ## Requirements
 
 - Claude Code with plugin support
-- Node.js 22 or newer available as `node`
+- Node.js 22.19.0 or newer available as `node`
 - A Querit API key
 
 Plugin installations do **not** download anything. `plugin/dist/server.js` is committed and already contains the MCP SDK, schema validation, and every other runtime dependency. The `plugin/` directory also carries no `package.json`, which is what keeps Claude Code from running its automatic dependency install on the copy it caches.
@@ -149,14 +149,13 @@ The plugin intentionally has no hooks or agents. `npm run verify:plugin` fails i
 
 ```bash
 npm ci
-npm run check
-npm run build
-npm test
-npm run verify:plugin
+npm run verify
 npm run pack
 ```
 
-`npm run pack` performs a dry run. Its `prepack` lifecycle runs the full verification chain (`check`, `build`, tests, and plugin structure validation) first. The bundle test copies `plugin/dist/server.js` outside the package and performs an MCP stdio handshake, which catches accidental unbundled runtime imports.
+`npm run verify` is the full chain: `check`, `build`, tests, and `verify:plugin`. Run the steps individually while iterating. The bundle test copies `plugin/dist/server.js` outside the package and performs an MCP stdio handshake, which catches accidental unbundled runtime imports.
+
+`npm run pack` inspects the tarball with `--ignore-scripts`, so it deliberately skips the `prepack` hook and does not re-verify. A real `npm publish` runs `prepack`, and therefore the full chain, first.
 
 Run the paid, networked smoke test only when explicitly enabled:
 
