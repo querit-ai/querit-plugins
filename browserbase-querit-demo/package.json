@@ -1,0 +1,42 @@
+{
+  "name": "browserbase-querit-demo",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Deterministic Querit discovery and Browserbase verification demo",
+  "type": "module",
+  "license": "MIT",
+  "author": "QUERIT PRIVATE LIMITED",
+  "engines": {
+    "node": ">=22.19.0"
+  },
+  "scripts": {
+    "check": "tsc -p tsconfig.check.json",
+    "test": "vitest run tests",
+    "build": "tsc -p tsconfig.json",
+    "start": "node dist/cli.js",
+    "test:live": "tsx scripts/live-smoke.ts",
+    "pack": "npm pack --dry-run --ignore-scripts"
+  },
+  "dependencies": {
+    "@browserbasehq/sdk": "^2.18.0",
+    "playwright-core": "^1.62.1"
+  },
+  "devDependencies": {
+    "@types/node": "^22.20.0",
+    "tsx": "^4.23.0",
+    "typescript": "^5.9.3",
+    "vitest": "^4.1.0"
+  },
+  "files": [
+    "dist",
+    "src",
+    "tests",
+    "scripts",
+    "docs",
+    ".env.example",
+    "README.md",
+    "LICENSE",
+    "tsconfig.json",
+    "tsconfig.check.json"
+  ]
+}
