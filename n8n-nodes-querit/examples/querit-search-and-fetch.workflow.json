@@ -1,0 +1,79 @@
+{
+	"name": "Querit Search and Fetch Example",
+	"nodes": [
+		{
+			"parameters": {},
+			"id": "32dc3b4f-eaa4-4e17-a899-f5d01f4de001",
+			"name": "When clicking Execute Workflow",
+			"type": "n8n-nodes-base.manualTrigger",
+			"typeVersion": 1,
+			"position": [0, 0]
+		},
+		{
+			"parameters": {
+				"operation": "search",
+				"query": "latest n8n community node updates",
+				"count": 5,
+				"searchOptions": {
+					"includeContent": true,
+					"chunksPerDoc": 1,
+					"languages": ["english"],
+					"timeRange": "m1"
+				}
+			},
+			"id": "32dc3b4f-eaa4-4e17-a899-f5d01f4de002",
+			"name": "Search Web",
+			"type": "n8n-nodes-querit.querit",
+			"typeVersion": 1,
+			"position": [240, -120]
+		},
+		{
+			"parameters": {
+				"operation": "fetch",
+				"urls": {
+					"url": [
+						{
+							"value": "https://docs.n8n.io/integrations/community-nodes/"
+						}
+					]
+				},
+				"format": "markdown",
+				"crawlTimeout": 10,
+				"includeMetadata": true
+			},
+			"id": "32dc3b4f-eaa4-4e17-a899-f5d01f4de003",
+			"name": "Fetch Content",
+			"type": "n8n-nodes-querit.querit",
+			"typeVersion": 1,
+			"position": [240, 120]
+		}
+	],
+	"pinData": {},
+	"connections": {
+		"When clicking Execute Workflow": {
+			"main": [
+				[
+					{
+						"node": "Search Web",
+						"type": "main",
+						"index": 0
+					},
+					{
+						"node": "Fetch Content",
+						"type": "main",
+						"index": 0
+					}
+				]
+			]
+		}
+	},
+	"active": false,
+	"settings": {
+		"executionOrder": "v1"
+	},
+	"versionId": "32dc3b4f-eaa4-4e17-a899-f5d01f4de004",
+	"meta": {
+		"templateCredsSetupCompleted": false
+	},
+	"tags": []
+}

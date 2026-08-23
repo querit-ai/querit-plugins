@@ -1,0 +1,19 @@
+{
+	"node": "n8n-nodes-querit",
+	"nodeVersion": "1.0",
+	"codexVersion": "1.0",
+	"categories": ["Development", "Marketing & Content"],
+	"alias": ["web search", "web fetch", "content extraction", "AI tool"],
+	"resources": {
+		"credentialDocumentation": [
+			{
+				"url": "https://github.com/querit-ai/querit-plugins/tree/main/n8n-nodes-querit#credentials"
+			}
+		],
+		"primaryDocumentation": [
+			{
+				"url": "https://github.com/querit-ai/querit-plugins/tree/main/n8n-nodes-querit#readme"
+			}
+		]
+	}
+}

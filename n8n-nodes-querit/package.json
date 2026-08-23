@@ -1,0 +1,89 @@
+{
+	"name": "n8n-nodes-querit",
+	"version": "0.1.0",
+	"description": "n8n community node for Querit web search and page content fetching",
+	"license": "MIT",
+	"homepage": "https://github.com/querit-ai/querit-plugins/tree/main/n8n-nodes-querit#readme",
+	"bugs": {
+		"url": "https://github.com/querit-ai/querit-plugins/issues"
+	},
+	"keywords": [
+		"n8n-community-node-package",
+		"n8n",
+		"querit",
+		"web-search",
+		"content-extraction",
+		"ai-tools"
+	],
+	"author": {
+		"name": "QUERIT PRIVATE LIMITED",
+		"email": "thisbelove@me.com"
+	},
+	"repository": {
+		"type": "git",
+		"url": "git+https://github.com/querit-ai/querit-plugins.git",
+		"directory": "n8n-nodes-querit"
+	},
+	"engines": {
+		"node": ">=22.22 <23"
+	},
+	"scripts": {
+		"build": "n8n-node build",
+		"build:watch": "tsc --watch",
+		"check": "tsc --noEmit -p tsconfig.check.json",
+		"dev": "n8n-node dev",
+		"format": "prettier --write \"{credentials,nodes,tests}/**/*.{ts,json}\" \"*.{json,md}\" \"examples/**/*.json\"",
+		"format:check": "prettier --check \"{credentials,nodes,tests}/**/*.{ts,json}\" \"*.{json,md}\" \"examples/**/*.json\"",
+		"lint": "n8n-node lint",
+		"lint:fix": "n8n-node lint --fix",
+		"test": "vitest run",
+		"test:watch": "vitest",
+		"release": "n8n-node release",
+		"scan": "scan-community-package n8n-nodes-querit",
+		"pack": "npm run build && npm pack --dry-run",
+		"prepublishOnly": "n8n-node prerelease"
+	},
+	"files": [
+		"dist",
+		"examples",
+		"README.md",
+		"CHANGELOG.md",
+		"LICENSE"
+	],
+	"n8n": {
+		"n8nNodesApiVersion": 1,
+		"strict": true,
+		"credentials": [
+			"dist/credentials/QueritApi.credentials.js"
+		],
+		"nodes": [
+			"dist/nodes/Querit/Querit.node.js"
+		]
+	},
+	"publishConfig": {
+		"access": "public",
+		"provenance": true
+	},
+	"release-it": {
+		"git": {
+			"tagName": "n8n-nodes-querit@${version}"
+		},
+		"github": {
+			"releaseName": "n8n-nodes-querit@${version}"
+		}
+	},
+	"devDependencies": {
+		"@n8n/node-cli": "0.44.5",
+		"@n8n/scan-community-package": "0.32.0",
+		"@types/node": "^22.20.1",
+		"eslint": "9.32.0",
+		"n8n-workflow": "2.35.3",
+		"prettier": "3.6.2",
+		"release-it": "^19.0.4",
+		"typescript": "5.9.2",
+		"vitest": "4.1.9"
+	},
+	"peerDependencies": {
+		"n8n-workflow": "*"
+	}
+}

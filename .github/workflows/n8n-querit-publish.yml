@@ -1,0 +1,57 @@
+# Publish setup (one time):
+# 1. In npm package settings, add a GitHub Actions trusted publisher.
+# 2. Set owner=querit-ai, repository=querit-plugins,
+#    workflow=n8n-querit-publish.yml.
+# 3. Leave the npm environment blank and do not configure an NPM_TOKEN.
+#
+# n8n requires GitHub Actions publishing with npm provenance for community
+# node verification. The id-token permission and npm 11 OIDC client below
+# produce that attestation without a long-lived publishing secret.
+
+name: Publish n8n Querit
+
+on:
+  push:
+    tags:
+      - 'n8n-nodes-querit@*'
+
+permissions:
+  contents: read
+  id-token: write
+
+concurrency:
+  group: publish-n8n-querit-${{ github.ref }}
+  cancel-in-progress: false
+
+defaults:
+  run:
+    working-directory: n8n-nodes-querit
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Node.js 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22.22.0'
+          registry-url: 'https://registry.npmjs.org/'
+          cache: npm
+          cache-dependency-path: n8n-nodes-querit/package-lock.json
+
+      - name: Enable npm trusted publishing
+        run: npm install --global npm@11
+
+      - name: Install dependencies
+        run: npm ci --ignore-scripts
+
+      - name: Check types
+        run: npm run check
+
+      - name: Run tests
+        run: npm test
+
+      - name: Publish with provenance
+        run: npm run release
