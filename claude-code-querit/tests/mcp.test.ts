@@ -18,7 +18,7 @@ afterEach(async () => {
 });
 
 async function connect(clientImplementation: QueritClientLike, env: NodeJS.ProcessEnv = {
-  CLAUDE_PLUGIN_OPTION_API_KEY: TEST_API_KEY,
+  QUERIT_API_KEY: TEST_API_KEY,
 }): Promise<Client> {
   const [clientTransport, serverTransport] = InMemoryTransport.createLinkedPair();
   server = createQueritMcpServer({ env, clientFactory: () => clientImplementation });

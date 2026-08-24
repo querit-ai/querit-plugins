@@ -24,7 +24,7 @@ describe("committed MCP bundle", () => {
     await copyFile(join(packageRoot, "plugin", "dist", "server.js"), isolatedBundle);
 
     const env: Record<string, string> = {
-      CLAUDE_PLUGIN_OPTION_API_KEY: "test-api-key-placeholder",
+      QUERIT_API_KEY: "test-api-key-placeholder",
     };
     if (process.env.SystemRoot) env.SystemRoot = process.env.SystemRoot;
 

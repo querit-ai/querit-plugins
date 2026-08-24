@@ -1,11 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 import type { CallToolResult } from "@modelcontextprotocol/sdk/types.js";
 import type { QueritContentsResponse, QueritSearchResponse } from "../src/client.js";
-import {
-  CLAUDE_PLUGIN_API_KEY_ENV,
-  LOCAL_API_KEY_ENV,
-  resolveQueritApiKey,
-} from "../src/config.js";
+import { LOCAL_API_KEY_ENV, resolveQueritApiKey } from "../src/config.js";
 import {
   MAX_PAGE_CONTENT_CHARS,
   buildSearchRequest,
@@ -43,27 +39,13 @@ function resultText(result: CallToolResult): string {
 }
 
 describe("API key resolution", () => {
-  it("prefers QUERIT_API_KEY over the Claude plugin option", () => {
-    expect(resolveQueritApiKey({
-      [CLAUDE_PLUGIN_API_KEY_ENV]: `  ${PLUGIN_KEY}  `,
-      [LOCAL_API_KEY_ENV]: LOCAL_KEY,
-    })).toBe(LOCAL_KEY);
-  });
-
-  it("falls back to the Claude plugin option when QUERIT_API_KEY is missing", () => {
+  it("trims QUERIT_API_KEY from the environment", () => {
     expect(resolveQueritApiKey({ [LOCAL_API_KEY_ENV]: ` ${LOCAL_KEY} ` })).toBe(LOCAL_KEY);
-    expect(resolveQueritApiKey({ [CLAUDE_PLUGIN_API_KEY_ENV]: ` ${PLUGIN_KEY} ` })).toBe(PLUGIN_KEY);
-    expect(resolveQueritApiKey({})).toBeUndefined();
   });
 
-  it("never treats the unexpanded userConfig placeholder as a key", () => {
-    expect(resolveQueritApiKey({
-      [CLAUDE_PLUGIN_API_KEY_ENV]: "${user_config.api_key}",
-    })).toBeUndefined();
-    expect(resolveQueritApiKey({
-      [CLAUDE_PLUGIN_API_KEY_ENV]: "${user_config.api_key}",
-      [LOCAL_API_KEY_ENV]: LOCAL_KEY,
-    })).toBe(LOCAL_KEY);
+  it("is undefined when QUERIT_API_KEY is missing or blank", () => {
+    expect(resolveQueritApiKey({})).toBeUndefined();
+    expect(resolveQueritApiKey({ [LOCAL_API_KEY_ENV]: "   " })).toBeUndefined();
   });
 });
 
@@ -103,7 +85,7 @@ describe("tool handlers", () => {
     };
     const factory = vi.fn(() => client);
     const handlers = createToolHandlers({
-      env: { [CLAUDE_PLUGIN_API_KEY_ENV]: PLUGIN_KEY },
+      env: { [LOCAL_API_KEY_ENV]: PLUGIN_KEY },
       clientFactory: factory,
     });
 
@@ -129,7 +111,7 @@ describe("tool handlers", () => {
       })),
     };
     const handlers = createToolHandlers({
-      env: { [CLAUDE_PLUGIN_API_KEY_ENV]: PLUGIN_KEY },
+      env: { [LOCAL_API_KEY_ENV]: PLUGIN_KEY },
       clientFactory: () => client,
     });
 
@@ -150,7 +132,7 @@ describe("tool handlers", () => {
     const result = await handlers.webSearch({ query: "q" });
 
     expect(result.isError).toBe(true);
-    expect(resultText(result)).toContain("api_key plugin option");
+    expect(resultText(result)).toContain("not configured");
     expect(resultText(result)).toContain(LOCAL_API_KEY_ENV);
   });
 
@@ -162,7 +144,7 @@ describe("tool handlers", () => {
       contents: vi.fn(),
     };
     const handlers = createToolHandlers({
-      env: { [CLAUDE_PLUGIN_API_KEY_ENV]: PLUGIN_KEY },
+      env: { [LOCAL_API_KEY_ENV]: PLUGIN_KEY },
       clientFactory: () => client,
     });
 

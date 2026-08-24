@@ -131,12 +131,8 @@ A Claude Code plugin that bundles a stdio MCP server exposing `web_search` and `
 /plugin install querit-ai@querit
 ```
 
-**API key** — the simplest path is setting the `QUERIT_API_KEY` environment variable; it takes precedence over every other source. Claude Code can alternatively store an optional, sensitive `api_key` plugin option.
+**API key** — the plugin reads only the `QUERIT_API_KEY` environment variable, which the MCP server process inherits from the environment that launches Claude Code. There is deliberately no in-product key option: one variable covers local development, CI, and UI installs.
 
-- **Where the key lives:** the option is declared `sensitive`, so Claude Code stores it in the macOS Keychain, or in `~/.claude/.credentials.json` on Windows and Linux where no supported keychain exists. It never lands in `settings.json`.
-- **How the server receives it:** `.mcp.json` substitutes the stored value into the `CLAUDE_PLUGIN_OPTION_API_KEY` environment variable of the MCP server process only.
-- **Change it later:** run `/plugin`, open the Querit plugin, and edit `api_key`. Non-interactively, `claude plugin install querit-ai@querit --config api_key=<key>`.
-- **Environment variable (wins when both are present):** set `QUERIT_API_KEY`; the plugin option is only the fallback.
 - **Never** put the key in `.mcp.json`, source files, shell history, chat, or logs. Tool errors redact the active key before Claude sees them.
 
 Claude Code does not start a plugin's MCP server while a required option is unset, so configure `api_key` before expecting the Querit tools to appear in `/mcp`.

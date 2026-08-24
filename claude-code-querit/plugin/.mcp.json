@@ -6,9 +6,6 @@
       "args": [
         "${CLAUDE_PLUGIN_ROOT}/dist/server.js"
       ],
-      "env": {
-        "CLAUDE_PLUGIN_OPTION_API_KEY": "${user_config.api_key}"
-      },
       "timeout": 90000
     }
   }

@@ -28,14 +28,14 @@ The repository root doubles as a Claude Code marketplace, so install the plugin 
 /plugin install querit-ai@querit
 ```
 
-Or non-interactively, supplying the key in the same step:
+Or non-interactively:
 
 ```bash
 claude plugin marketplace add querit-ai/querit-plugins
-claude plugin install querit-ai@querit --config api_key=<your-key>
+claude plugin install querit-ai@querit
 ```
 
-The plugin declares an optional, sensitive `api_key` option. Leave it unset if you use the `QUERIT_API_KEY` environment variable, which takes precedence (see [API key priority](#api-key-priority)).
+The plugin takes its API key from the `QUERIT_API_KEY` environment variable only (see [API key](#api-key)). Set it before starting Claude Code so the MCP server process inherits it.
 
 For local development from this repository, load the plugin with `--plugin-dir`. The plugin root is the `plugin/` subdirectory, not the package root:
 
@@ -43,38 +43,15 @@ For local development from this repository, load the plugin with `--plugin-dir`.
 claude --plugin-dir ./claude-code-querit/plugin
 ```
 
-`--plugin-dir` skips the install flow. The server takes the key from `QUERIT_API_KEY` in the environment when present; to use the plugin option instead, configure it through `/plugin` inside the session, or pass it up front with a settings file for headless and scripted runs:
-
-```json dev-settings.json
-{ "pluginConfigs": { "querit@inline": { "options": { "api_key": "your-key" } } } }
-```
-
-```bash
-claude --plugin-dir ./claude-code-querit/plugin --settings ./dev-settings.json
-```
-
-Keep that file out of version control. `querit-ai@inline` is the plugin ID that `claude --plugin-dir ./claude-code-querit/plugin plugin list` prints; a marketplace install uses `querit-ai@querit` instead.
+`--plugin-dir` skips the install flow; the server still takes the key from `QUERIT_API_KEY` in the environment. `querit-ai@inline` is the plugin ID that `claude --plugin-dir ./claude-code-querit/plugin plugin list` prints; a marketplace install uses `querit-ai@querit` instead.
 
 Then use `/mcp` to confirm that the plugin-provided `querit` server is connected. Run `/reload-plugins` after changing `.mcp.json`, the manifest, or MCP code.
 
-### Where the API key is stored
+### API key
 
-`api_key` is declared `sensitive`, so Claude Code keeps it out of `settings.json` and out of this repository:
+The server reads the key from the `QUERIT_API_KEY` environment variable on every tool call. Claude Code spawns the MCP server as a child process, so the variable set in the environment that launches Claude Code is inherited — set it at user or machine scope (on Windows, `setx QUERIT_API_KEY <key>` and open a new terminal) or export it from your shell profile.
 
-- **macOS:** the login Keychain, shared with Claude Code's OAuth tokens.
-- **Windows and Linux:** `~/.claude/.credentials.json`, because no supported keychain is available there.
-- **Delivery to the server:** `.mcp.json` substitutes the stored value into `CLAUDE_PLUGIN_OPTION_API_KEY` in the MCP server process environment. Nothing else in the session receives it.
-
-Change or clear the key with `/plugin` → Querit → `api_key`, or reinstall with `--config api_key=<key>`. Keychain storage has a roughly 2 KB shared limit, which a Querit key is far below.
-
-### API key priority
-
-The server resolves a non-empty key for every tool call in this order:
-
-1. `QUERIT_API_KEY` — environment variable, inherited by the MCP server process
-2. `CLAUDE_PLUGIN_OPTION_API_KEY` — populated by `.mcp.json` from the sensitive `userConfig.api_key` value
-
-Note that a stale `QUERIT_API_KEY` therefore overrides the plugin option; unset it if you switch to `userConfig.api_key`.
+There is deliberately no in-product `userConfig` option: one environment variable keeps local development, CI, and UI installs on a single code path, and nothing credential-shaped is written into plugin settings.
 
 Do not put a literal key in `.mcp.json`, source files, shell history, chat, or logs. Tool errors redact the active key before they reach Claude.
 
@@ -134,7 +111,7 @@ Everything Claude Code copies on install lives under `plugin/`; everything above
 ```text
 claude-code-querit/
 ├── plugin/                          # <- the plugin root Claude Code installs
-│   ├── .claude-plugin/plugin.json   # Plugin metadata and sensitive userConfig
+│   ├── .claude-plugin/plugin.json   # Plugin metadata
 │   ├── .mcp.json                    # Starts the bundled stdio server
 │   ├── dist/server.js               # Committed, self-contained Node.js bundle
 │   ├── skills/research/SKILL.md     # Citation-focused research workflow

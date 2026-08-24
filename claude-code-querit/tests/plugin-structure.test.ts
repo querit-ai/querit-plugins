@@ -12,17 +12,12 @@ async function json(path: string): Promise<Record<string, unknown>> {
 }
 
 describe("Claude Code plugin package", () => {
-  it("has an optional sensitive api_key user option", async () => {
+  it("keeps versions in sync and declares no userConfig", async () => {
     const manifest = await json(join(pluginRoot, ".claude-plugin", "plugin.json"));
     const packageJson = await json(join(packageRoot, "package.json"));
     expect(manifest.version).toBe(packageJson.version);
     expect(MCP_SERVER_VERSION).toBe(packageJson.version);
-    const userConfig = manifest.userConfig as Record<string, Record<string, unknown>>;
-    expect(userConfig.api_key).toMatchObject({
-      type: "string",
-      required: false,
-      sensitive: true,
-    });
+    expect(manifest.userConfig).toBeUndefined();
     expect(await readdir(join(pluginRoot, ".claude-plugin"))).toEqual(["plugin.json"]);
   });
 
@@ -34,10 +29,8 @@ describe("Claude Code plugin package", () => {
       command: "node",
       args: ["${CLAUDE_PLUGIN_ROOT}/dist/server.js"],
       timeout: 90_000,
-      env: {
-        CLAUDE_PLUGIN_OPTION_API_KEY: "${user_config.api_key}",
-      },
     });
+    expect(server.env).toBeUndefined();
 
     const bundle = await readFile(join(pluginRoot, "dist", "server.js"), "utf8");
     expect(bundle.startsWith("#!/usr/bin/env node")).toBe(true);

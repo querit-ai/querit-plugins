@@ -17,14 +17,5 @@
     "research",
     "citations",
     "mcp"
-  ],
-  "userConfig": {
-    "api_key": {
-      "type": "string",
-      "title": "Querit API key",
-      "description": "API key from querit.ai. Optional when the QUERIT_API_KEY environment variable is set — the environment variable takes precedence. Stored as a sensitive Claude Code plugin option.",
-      "required": false,
-      "sensitive": true
-    }
-  }
+  ]
 }

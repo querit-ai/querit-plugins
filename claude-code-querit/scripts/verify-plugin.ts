@@ -16,18 +16,18 @@ assert.equal(packageJson.name, "claude-code-querit");
 assert.equal(manifest.name, "querit-ai");
 assert.equal(manifest.version, packageJson.version, "Manifest and package versions must match.");
 
-const userConfig = record(manifest.userConfig, "plugin.json userConfig");
-const apiKey = record(userConfig.api_key, "plugin.json userConfig.api_key");
-assert.equal(apiKey.type, "string");
-assert.equal(apiKey.required, false);
-assert.equal(apiKey.sensitive, true);
+assert.equal(
+  manifest.userConfig,
+  undefined,
+  "No userConfig: the server resolves QUERIT_API_KEY from the environment.",
+);
 
 const mcpServers = record(mcp.mcpServers, ".mcp.json mcpServers");
 const queritServer = record(mcpServers.querit, ".mcp.json mcpServers.querit");
 assert.equal(queritServer.type, "stdio");
 assert.equal(queritServer.command, "node");
 assert.deepEqual(queritServer.args, ["${CLAUDE_PLUGIN_ROOT}/dist/server.js"]);
-assert.equal(record(queritServer.env, ".mcp.json server env").CLAUDE_PLUGIN_OPTION_API_KEY, "${user_config.api_key}");
+assert.equal(queritServer.env, undefined, ".mcp.json sets no env; QUERIT_API_KEY is inherited.");
 assert.equal(queritServer.timeout, 90_000);
 
 const pluginEntries = await readdir(join(pluginRoot, ".claude-plugin"));
