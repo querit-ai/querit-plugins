@@ -71,8 +71,10 @@ Change or clear the key with `/plugin` → Querit → `api_key`, or reinstall wi
 
 The server resolves a non-empty key for every tool call in this order:
 
-1. `CLAUDE_PLUGIN_OPTION_API_KEY` — populated by `.mcp.json` from the sensitive `userConfig.api_key` value
-2. `QUERIT_API_KEY` — local-development and CI fallback
+1. `QUERIT_API_KEY` — environment variable, inherited by the MCP server process
+2. `CLAUDE_PLUGIN_OPTION_API_KEY` — populated by `.mcp.json` from the sensitive `userConfig.api_key` value
+
+Note that a stale `QUERIT_API_KEY` therefore overrides the plugin option; unset it if you switch to `userConfig.api_key`.
 
 Do not put a literal key in `.mcp.json`, source files, shell history, chat, or logs. Tool errors redact the active key before they reach Claude.
 

@@ -43,20 +43,27 @@ function resultText(result: CallToolResult): string {
 }
 
 describe("API key resolution", () => {
-  it("prefers the Claude plugin option over the local development key", () => {
+  it("prefers QUERIT_API_KEY over the Claude plugin option", () => {
     expect(resolveQueritApiKey({
       [CLAUDE_PLUGIN_API_KEY_ENV]: `  ${PLUGIN_KEY}  `,
       [LOCAL_API_KEY_ENV]: LOCAL_KEY,
-    })).toBe(PLUGIN_KEY);
+    })).toBe(LOCAL_KEY);
   });
 
-  it("falls back to QUERIT_API_KEY for local development", () => {
+  it("falls back to the Claude plugin option when QUERIT_API_KEY is missing", () => {
     expect(resolveQueritApiKey({ [LOCAL_API_KEY_ENV]: ` ${LOCAL_KEY} ` })).toBe(LOCAL_KEY);
+    expect(resolveQueritApiKey({ [CLAUDE_PLUGIN_API_KEY_ENV]: ` ${PLUGIN_KEY} ` })).toBe(PLUGIN_KEY);
+    expect(resolveQueritApiKey({})).toBeUndefined();
+  });
+
+  it("never treats the unexpanded userConfig placeholder as a key", () => {
+    expect(resolveQueritApiKey({
+      [CLAUDE_PLUGIN_API_KEY_ENV]: "${user_config.api_key}",
+    })).toBeUndefined();
     expect(resolveQueritApiKey({
       [CLAUDE_PLUGIN_API_KEY_ENV]: "${user_config.api_key}",
       [LOCAL_API_KEY_ENV]: LOCAL_KEY,
     })).toBe(LOCAL_KEY);
-    expect(resolveQueritApiKey({})).toBeUndefined();
   });
 });
 
