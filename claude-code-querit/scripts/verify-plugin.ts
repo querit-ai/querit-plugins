@@ -19,7 +19,7 @@ assert.equal(manifest.version, packageJson.version, "Manifest and package versio
 const userConfig = record(manifest.userConfig, "plugin.json userConfig");
 const apiKey = record(userConfig.api_key, "plugin.json userConfig.api_key");
 assert.equal(apiKey.type, "string");
-assert.equal(apiKey.required, true);
+assert.equal(apiKey.required, false);
 assert.equal(apiKey.sensitive, true);
 
 const mcpServers = record(mcp.mcpServers, ".mcp.json mcpServers");

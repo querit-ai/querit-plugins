@@ -35,7 +35,7 @@ claude plugin marketplace add querit-ai/querit-plugins
 claude plugin install querit-ai@querit --config api_key=<your-key>
 ```
 
-The plugin declares a required, sensitive `api_key` option, so the interactive flow prompts for it when the plugin is enabled.
+The plugin declares an optional, sensitive `api_key` option. Leave it unset if you use the `QUERIT_API_KEY` environment variable, which takes precedence (see [API key priority](#api-key-priority)).
 
 For local development from this repository, load the plugin with `--plugin-dir`. The plugin root is the `plugin/` subdirectory, not the package root:
 
@@ -43,7 +43,7 @@ For local development from this repository, load the plugin with `--plugin-dir`.
 claude --plugin-dir ./claude-code-querit/plugin
 ```
 
-`--plugin-dir` skips the install flow that normally collects `api_key`, and Claude Code does not start a plugin's MCP server while a required option is unset. Configure the option through `/plugin` inside the session, or pass it up front with a settings file for headless and scripted runs:
+`--plugin-dir` skips the install flow. The server takes the key from `QUERIT_API_KEY` in the environment when present; to use the plugin option instead, configure it through `/plugin` inside the session, or pass it up front with a settings file for headless and scripted runs:
 
 ```json dev-settings.json
 { "pluginConfigs": { "querit@inline": { "options": { "api_key": "your-key" } } } }

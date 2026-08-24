@@ -12,7 +12,7 @@ async function json(path: string): Promise<Record<string, unknown>> {
 }
 
 describe("Claude Code plugin package", () => {
-  it("has a required sensitive api_key user option", async () => {
+  it("has an optional sensitive api_key user option", async () => {
     const manifest = await json(join(pluginRoot, ".claude-plugin", "plugin.json"));
     const packageJson = await json(join(packageRoot, "package.json"));
     expect(manifest.version).toBe(packageJson.version);
@@ -20,7 +20,7 @@ describe("Claude Code plugin package", () => {
     const userConfig = manifest.userConfig as Record<string, Record<string, unknown>>;
     expect(userConfig.api_key).toMatchObject({
       type: "string",
-      required: true,
+      required: false,
       sensitive: true,
     });
     expect(await readdir(join(pluginRoot, ".claude-plugin"))).toEqual(["plugin.json"]);
