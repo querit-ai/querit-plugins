@@ -8,7 +8,7 @@
   },
   "plugins": [
     {
-      "name": "querit",
+      "name": "querit-ai",
       "source": "./claude-code-querit/plugin",
       "description": "Live web search, clean page retrieval, and citation-focused research for Claude Code.",
       "category": "research",

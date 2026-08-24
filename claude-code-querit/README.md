@@ -25,14 +25,14 @@ The repository root doubles as a Claude Code marketplace, so install the plugin 
 
 ```text
 /plugin marketplace add querit-ai/querit-plugins
-/plugin install querit@querit
+/plugin install querit-ai@querit
 ```
 
 Or non-interactively, supplying the key in the same step:
 
 ```bash
 claude plugin marketplace add querit-ai/querit-plugins
-claude plugin install querit@querit --config api_key=<your-key>
+claude plugin install querit-ai@querit --config api_key=<your-key>
 ```
 
 The plugin declares a required, sensitive `api_key` option, so the interactive flow prompts for it when the plugin is enabled.
@@ -53,7 +53,7 @@ claude --plugin-dir ./claude-code-querit/plugin
 claude --plugin-dir ./claude-code-querit/plugin --settings ./dev-settings.json
 ```
 
-Keep that file out of version control. `querit@inline` is the plugin ID that `claude --plugin-dir ./claude-code-querit/plugin plugin list` prints; a marketplace install uses `querit@querit` instead.
+Keep that file out of version control. `querit-ai@inline` is the plugin ID that `claude --plugin-dir ./claude-code-querit/plugin plugin list` prints; a marketplace install uses `querit-ai@querit` instead.
 
 Then use `/mcp` to confirm that the plugin-provided `querit` server is connected. Run `/reload-plugins` after changing `.mcp.json`, the manifest, or MCP code.
 

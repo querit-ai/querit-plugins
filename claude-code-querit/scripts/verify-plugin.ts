@@ -13,7 +13,7 @@ const manifest = await readJson(join(pluginRoot, ".claude-plugin", "plugin.json"
 const mcp = await readJson(join(pluginRoot, ".mcp.json"));
 
 assert.equal(packageJson.name, "claude-code-querit");
-assert.equal(manifest.name, "querit");
+assert.equal(manifest.name, "querit-ai");
 assert.equal(manifest.version, packageJson.version, "Manifest and package versions must match.");
 
 const userConfig = record(manifest.userConfig, "plugin.json userConfig");
