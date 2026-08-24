@@ -1,6 +1,6 @@
 {
 	"name": "n8n-nodes-querit",
-	"version": "0.1.0",
+	"version": "0.1.1",
 	"description": "n8n community node for Querit web search and page content fetching",
 	"license": "MIT",
 	"homepage": "https://github.com/querit-ai/querit-plugins/tree/main/n8n-nodes-querit#readme",
