@@ -1,5 +1,4 @@
 import { readFile, rm } from "node:fs/promises";
-import { dirname } from "node:path";
 import { DEFAULT_MAX_BYTES, DEFAULT_MAX_LINES } from "@earendil-works/pi-coding-agent";
 import { describe, expect, it } from "vitest";
 import { formatContentsResponse, formatSearchResponse, truncateUtf8 } from "../src/format.js";
@@ -92,13 +91,13 @@ describe("response formatting", () => {
     expect(limited.text.split("\n").length).toBeLessThanOrEqual(DEFAULT_MAX_LINES);
     expect(limited.fullOutputPath).toBeTruthy();
     expect(await readFile(limited.fullOutputPath!, "utf8")).toBe(output);
-    await rm(dirname(limited.fullOutputPath!), { recursive: true, force: true });
+    await rm(limited.fullOutputPath!, { force: true });
 
     const lineOnlyOutput = Array.from({ length: 2_100 }, () => "x").join("\n");
     const lineLimited = await limitToolOutput(lineOnlyOutput, "line-output.md");
     expect(Buffer.byteLength(lineLimited.text, "utf8")).toBeLessThanOrEqual(DEFAULT_MAX_BYTES);
     expect(lineLimited.text.split("\n").length).toBeLessThanOrEqual(DEFAULT_MAX_LINES);
     expect(await readFile(lineLimited.fullOutputPath!, "utf8")).toBe(lineOnlyOutput);
-    await rm(dirname(lineLimited.fullOutputPath!), { recursive: true, force: true });
+    await rm(lineLimited.fullOutputPath!, { force: true });
   });
 });

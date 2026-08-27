@@ -4,20 +4,6 @@ import { getAgentDir, withFileMutationQueue } from "@earendil-works/pi-coding-ag
 
 export const QUERIT_CONFIG_FILE = "querit-search.json";
 
-export type SearchWorkflow = "raw" | "summary";
-
-export const THINKING_LEVEL_VALUES = [
-  "off",
-  "minimal",
-  "low",
-  "medium",
-  "high",
-  "xhigh",
-  "max",
-] as const;
-
-export type QueritThinkingLevel = (typeof THINKING_LEVEL_VALUES)[number];
-
 export const COUNTRY_VALUES = [
   "argentina",
   "australia",
@@ -64,16 +50,10 @@ export interface QueritSearchDefaults {
 
 export interface QueritConfig {
   apiKey: string;
-  defaultWorkflow?: SearchWorkflow;
-  summaryModel?: string;
-  summaryThinkingLevel?: QueritThinkingLevel;
   search?: QueritSearchDefaults;
 }
 
 export interface QueritConfigSettings {
-  defaultWorkflow?: SearchWorkflow;
-  summaryModel?: string;
-  summaryThinkingLevel?: QueritThinkingLevel;
   search?: QueritSearchDefaults;
 }
 
@@ -108,20 +88,10 @@ export async function loadQueritConfig(configPath = getQueritConfigPath()): Prom
     throw new Error(`Querit configuration at ${configPath} must contain a non-empty "apiKey" string.`);
   }
 
-  const defaultWorkflow = parsed.defaultWorkflow === "raw" || parsed.defaultWorkflow === "summary"
-    ? parsed.defaultWorkflow
-    : undefined;
-  const summaryModel = typeof parsed.summaryModel === "string" && isModelReference(parsed.summaryModel)
-    ? parsed.summaryModel.trim()
-    : undefined;
-  const summaryThinkingLevel = isThinkingLevel(parsed.summaryThinkingLevel) ? parsed.summaryThinkingLevel : undefined;
   const search = parseSearchDefaults(parsed.search);
 
   return {
     apiKey: parsed.apiKey.trim(),
-    ...(defaultWorkflow === undefined ? {} : { defaultWorkflow }),
-    ...(summaryModel === undefined ? {} : { summaryModel }),
-    ...(summaryThinkingLevel === undefined ? {} : { summaryThinkingLevel }),
     ...(search === undefined ? {} : { search }),
   };
 }
@@ -141,23 +111,9 @@ export async function saveQueritConfig(
 ): Promise<void> {
   const normalizedKey = apiKey.trim();
   if (!normalizedKey) throw new Error("Cannot save an empty Querit API key.");
-  if (settings.defaultWorkflow !== undefined && settings.defaultWorkflow !== "raw" && settings.defaultWorkflow !== "summary") {
-    throw new Error("Cannot save an invalid Querit default workflow.");
-  }
-  const summaryModel = settings.summaryModel?.trim();
-  if (summaryModel !== undefined && !isModelReference(summaryModel)) {
-    throw new Error("Cannot save an invalid Querit summary model reference.");
-  }
-  const summaryThinkingLevel = settings.summaryThinkingLevel;
-  if (summaryThinkingLevel !== undefined && !isThinkingLevel(summaryThinkingLevel)) {
-    throw new Error("Cannot save an invalid Querit summary thinking level.");
-  }
   const search = settings.search === undefined ? undefined : parseSearchDefaults(settings.search);
   const serializedConfig: QueritConfig = {
     apiKey: normalizedKey,
-    ...(settings.defaultWorkflow === undefined ? {} : { defaultWorkflow: settings.defaultWorkflow }),
-    ...(summaryModel === undefined ? {} : { summaryModel }),
-    ...(summaryThinkingLevel === undefined ? {} : { summaryThinkingLevel }),
     ...(search === undefined ? {} : { search }),
   };
 
@@ -177,16 +133,6 @@ export async function saveQueritConfig(
       await rm(temporaryPath, { force: true }).catch(() => undefined);
     }
   });
-}
-
-function isModelReference(value: string): boolean {
-  const normalized = value.trim();
-  const slash = normalized.indexOf("/");
-  return slash > 0 && slash < normalized.length - 1 && !/\s/u.test(normalized);
-}
-
-function isThinkingLevel(value: unknown): value is QueritThinkingLevel {
-  return typeof value === "string" && (THINKING_LEVEL_VALUES as readonly string[]).includes(value);
 }
 
 export function parseSearchDefaults(value: unknown): QueritSearchDefaults | undefined {

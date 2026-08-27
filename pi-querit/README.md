@@ -34,7 +34,7 @@ Start Pi interactively and run the setup wizard:
 /querit-setup
 ```
 
-The wizard walks you through API key entry, search defaults, and an optional summary model. Every step after the API key can be skipped.
+The wizard walks you through API key entry and search defaults. Every step after the API key can be skipped.
 
 **3. Search**
 
@@ -52,7 +52,7 @@ Just ask your agent anything that needs the web — it calls `web_search` and `f
 ┌──────────────────────────────────────────────────────────┐
 │  Pi Agent                                                │
 │                                                          │
-│  web_search(query, count?, workflow?)                    │
+│  web_search(query, count?)                               │
 │      │                                                   │
 │      ▼                                                   │
 │  ┌─────────────┐    persistent defaults     ┌─────────┐  │
@@ -61,15 +61,7 @@ Just ask your agent anything that needs the web — it calls `web_search` and `f
 │  └──────┬──────┘    from /querit-setup      │ json     │  │
 │         │                                   └─────────┘  │
 │         ▼                                                │
-│  workflow = raw?──► return cited results to outer model   │
-│         │                                                │
-│  workflow = summary?                                     │
-│         │                                                │
-│         ▼                                                │
-│  ┌──────────────────┐                                    │
-│  │ Fixed Pi model    │  nested LLM call                  │
-│  │ (from setup)      │  → concise summary + sources      │
-│  └──────────────────┘  + key excerpts                    │
+│    return cited results to the model                     │
 │                                                          │
 │  fetch_content(url/urls, format?)                        │
 │      │                                                   │
@@ -85,14 +77,9 @@ The extension registers two tools and one slash command:
 
 | Surface | Purpose |
 |---|---|
-| `web_search` | Live web search with cited results; optionally pre-summarized by a fixed Pi model |
+| `web_search` | Live web search with cited results |
 | `fetch_content` | Full page content (markdown, text, or HTML) for up to 10 URLs per call |
-| `/querit-setup` | Interactive configuration of the API key, persistent search defaults, workflow, and summary model |
-
-**`raw` vs `summary` workflow:**
-
-- **`raw`** (recommended) — Pi's outer model receives the cited Querit results and answers normally.
-- **`summary`** — one additional nested LLM call using the fixed model selected in `/querit-setup` produces a concise summary (preserving version numbers, API signatures, error messages, and verbatim quotes), followed by a Sources list and a `## Key excerpts` section with the top five results' raw snippets. If the fixed model is missing, unauthenticated, times out (30 s), or returns empty output, the tool falls back to raw results and reports the reason.
+| `/querit-setup` | Interactive configuration of the API key and persistent search defaults |
 
 ## Configuration
 
@@ -102,8 +89,6 @@ Run `/querit-setup` in Pi's interactive mode. Configuration is stored in `~/.pi/
 
 1. **API key** — masked input prompt; validated with a one-result search request.
 2. **Search defaults** — each step can be skipped (see table below).
-3. **Workflow** — choose `raw` or `summary` as the default.
-4. **Summary model** *(summary only)* — interactive model picker (five per page, arrow-key navigation, type-to-filter fuzzy matching, active model first), then a thinking intensity selector filtered to the levels the chosen model supports.
 
 ### Re-configuration menu
 
@@ -113,7 +98,6 @@ When a key is already configured, `/querit-setup` opens a menu:
 |---|---|
 | **Replace API key (full re-setup)** | Prompts for a new key, validates it, re-runs the full flow. The old key is overwritten locally; revoke it in the Querit dashboard if needed. |
 | **Change search defaults** | Edits the persistent search filters without touching the saved key. |
-| **Change summary settings** | Edits the default workflow, the fixed summary model, and its thinking intensity. |
 
 ### Search default options
 
@@ -130,22 +114,11 @@ These are persistent defaults applied to every `web_search` call. They are store
 | `includeDomains` | domain list | *(none — unrestricted)* | **Whitelist** — only these domains return results. |
 | `excludeDomains` | domain list | *(none)* | **Blacklist** — these domains are excluded. Ships with a built-in **Noise blockers** preset: `pinterest.com`, `facebook.com`, `instagram.com`, `tiktok.com`. |
 
-### Summary settings
-
-| Option | Values | Description |
-|---|---|---|
-| `defaultWorkflow` | `raw` · `summary` | Default workflow for `web_search`. Can be overridden per call via the `workflow` parameter. |
-| `summaryModel` | any Pi model reference | Fixed model used for the nested summary call (e.g. `anthropic/claude-sonnet-4-20250514`). |
-| `summaryThinkingLevel` | model-dependent | Thinking intensity for the summary model (e.g. `off`, `low`, `medium`, `high`). Defaults to `medium`; the picker only shows levels the chosen model supports. |
-
 ### Configuration file example
 
 ```json
 {
   "apiKey": "your-api-key",
-  "defaultWorkflow": "raw",
-  "summaryModel": "provider/model-id",
-  "summaryThinkingLevel": "medium",
   "search": {
     "count": 5,
     "chunksPerDoc": 1,
@@ -174,7 +147,6 @@ Required:
 Optional:
 
 - `count` (`1..20`) — overrides the configured default for one call (API default: `5`)
-- `workflow`: `raw` or `summary`; overrides the setup default for one call
 
 Domains, time range, countries, languages, and content excerpts are persistent defaults configured in `/querit-setup` (stored under `search` in `querit-search.json`), not per-call parameters. Skipping the domain lists leaves search unrestricted; the include list is a whitelist (only those domains return results), the exclude list is a blacklist.
 
@@ -190,7 +162,7 @@ Optional:
 - `crawl_timeout`: `1..60` seconds (default `10`)
 - `include_metadata`: default `true`
 
-Both tools mark remote data as untrusted, propagate Pi cancellation, enforce response-size limits, and cap model-visible output at Pi's 50KB/2000-line limit. If formatted output is truncated, the complete output is written to a unique temporary file and its path is returned.
+Both tools mark remote data as untrusted, propagate Pi cancellation, enforce response-size limits, and cap model-visible output at Pi's 50KB/2000-line limit. If formatted output is truncated, the complete output is written to a uniquely named file inside a single shared temp folder (`pi-querit` in the OS temp directory). To keep search content private, that folder never accumulates files: the files a Pi process creates are deleted when that session shuts down (with a process-exit fallback), and leftovers from crashed runs are swept the next time the extension loads.
 
 ## Development
 

@@ -1,4 +1,5 @@
-import { mkdtemp, writeFile } from "node:fs/promises";
+import { rmSync } from "node:fs";
+import { mkdir, readdir, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import {
@@ -9,6 +10,13 @@ import {
   withFileMutationQueue,
   type TruncationResult,
 } from "@earendil-works/pi-coding-agent";
+
+const TEMP_DIRECTORY_NAME = "pi-querit";
+const TEMP_FILE_PATTERN = /^(.+)-(\d+)-(\d+)(\.[^.]+)?$/;
+
+const createdFiles = new Set<string>();
+let fileCounter = 0;
+let exitCleanupRegistered = false;
 
 export interface LimitedOutput {
   text: string;
@@ -23,8 +31,7 @@ export async function limitToolOutput(text: string, fileName: string): Promise<L
   });
   if (!initial.truncated) return { text };
 
-  const directory = await mkdtemp(join(tmpdir(), "pi-querit-"));
-  const fullOutputPath = join(directory, fileName);
+  const fullOutputPath = await reserveTempFile(fileName);
   await withFileMutationQueue(fullOutputPath, async () => {
     await writeFile(fullOutputPath, text, "utf8");
   });
@@ -55,6 +62,75 @@ export async function limitToolOutput(text: string, fileName: string): Promise<L
     truncation,
     fullOutputPath,
   };
+}
+
+function tempDirectoryPath(): string {
+  return join(tmpdir(), TEMP_DIRECTORY_NAME);
+}
+
+/**
+ * All truncated output lives in one shared temp directory so search content never
+ * scatters across per-call folders. File names embed the creating pid so concurrent
+ * Pi instances cannot collide and stale files from dead processes can be swept.
+ */
+async function reserveTempFile(fileName: string): Promise<string> {
+  // mkdir on every call: the directory may have been removed externally since a
+  // previous write; recursive mkdir on an existing directory is a cheap no-op.
+  await mkdir(tempDirectoryPath(), { recursive: true });
+  const dot = fileName.lastIndexOf(".");
+  const base = dot === -1 ? fileName : fileName.slice(0, dot);
+  const extension = dot === -1 ? "" : fileName.slice(dot);
+  const path = join(tempDirectoryPath(), `${base}-${process.pid}-${++fileCounter}${extension}`);
+  createdFiles.add(path);
+  return path;
+}
+
+/** Deletes only the files this process created; the shared folder is never removed. */
+export async function cleanupTempFiles(): Promise<void> {
+  const paths = [...createdFiles];
+  createdFiles.clear();
+  await Promise.all(paths.map((path) => rm(path, { force: true }).catch(() => undefined)));
+}
+
+/** Synchronous best-effort fallback for exits that skip session_shutdown (e.g. signals). */
+export function registerProcessExitCleanup(): void {
+  if (exitCleanupRegistered) return;
+  exitCleanupRegistered = true;
+  process.once("exit", () => {
+    for (const path of createdFiles) {
+      try {
+        rmSync(path, { force: true });
+      } catch {
+        // Best effort only.
+      }
+    }
+    createdFiles.clear();
+  });
+}
+
+/** Removes leftovers from previous runs whose process no longer exists. */
+export async function sweepStaleTempFiles(): Promise<void> {
+  let entries: string[];
+  try {
+    entries = await readdir(tempDirectoryPath());
+  } catch {
+    return;
+  }
+  await Promise.all(entries.map(async (entry) => {
+    const match = TEMP_FILE_PATTERN.exec(entry);
+    if (!match || isProcessAlive(Number(match[2]))) return;
+    await rm(join(tempDirectoryPath(), entry), { force: true }).catch(() => undefined);
+  }));
+}
+
+function isProcessAlive(pid: number): boolean {
+  try {
+    process.kill(pid, 0);
+    return true;
+  } catch (error) {
+    // EPERM means the process exists but belongs to another user.
+    return (error as NodeJS.ErrnoException).code === "EPERM";
+  }
 }
 
 function lineCount(value: string): number {

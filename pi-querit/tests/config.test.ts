@@ -32,22 +32,15 @@ describe("Querit configuration", () => {
     await expect(loadQueritConfig(path)).resolves.toEqual({ apiKey: "replacement-key" });
   });
 
-  it("persists and validates summary workflow settings", async () => {
+  it("ignores removed summary settings from older configurations", async () => {
     const path = await temporaryConfigPath();
-    await saveQueritConfig("test-key", path, {
+    await writeFile(path, JSON.stringify({
+      apiKey: "key",
       defaultWorkflow: "summary",
-      summaryModel: "openrouter/anthropic/claude-sonnet-4",
-    });
+      summaryModel: "provider/model-id",
+      summaryThinkingLevel: "medium",
+    }), "utf8");
 
-    await expect(loadQueritConfig(path)).resolves.toEqual({
-      apiKey: "test-key",
-      defaultWorkflow: "summary",
-      summaryModel: "openrouter/anthropic/claude-sonnet-4",
-    });
-
-    await writeFile(path, JSON.stringify({ apiKey: "key", defaultWorkflow: "invalid" }), "utf8");
-    await expect(loadQueritConfig(path)).resolves.toEqual({ apiKey: "key" });
-    await writeFile(path, JSON.stringify({ apiKey: "key", summaryModel: "missing-slash" }), "utf8");
     await expect(loadQueritConfig(path)).resolves.toEqual({ apiKey: "key" });
   });
 
@@ -135,28 +128,5 @@ describe("Querit configuration", () => {
     await saveQueritConfig("test-key", path);
     await chmod(path, 0o600);
     expect((await stat(path)).mode & 0o777).toBe(0o600);
-  });
-
-  it("persists and validates the summary thinking level", async () => {
-    const path = await temporaryConfigPath();
-    await saveQueritConfig("test-key", path, {
-      defaultWorkflow: "summary",
-      summaryModel: "provider/model-id",
-      summaryThinkingLevel: "medium",
-    });
-
-    await expect(loadQueritConfig(path)).resolves.toEqual({
-      apiKey: "test-key",
-      defaultWorkflow: "summary",
-      summaryModel: "provider/model-id",
-      summaryThinkingLevel: "medium",
-    });
-
-    await writeFile(path, JSON.stringify({ apiKey: "key", summaryThinkingLevel: "turbo" }), "utf8");
-    await expect(loadQueritConfig(path)).resolves.toEqual({ apiKey: "key" });
-
-    await expect(
-      saveQueritConfig("key", path, { summaryThinkingLevel: "turbo" as never }),
-    ).rejects.toThrow("thinking level");
   });
 });

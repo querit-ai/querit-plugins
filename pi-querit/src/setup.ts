@@ -1,17 +1,10 @@
-import { getSupportedThinkingLevels } from "@earendil-works/pi-ai/compat";
 import { DynamicBorder, type ExtensionCommandContext } from "@earendil-works/pi-coding-agent";
 import {
   Container,
   Input,
-  SelectList,
   Spacer,
   Text,
-  fuzzyFilter,
-  getKeybindings,
-  type Component,
   type Focusable,
-  type SelectItem,
-  type SelectListTheme,
   type TUI,
 } from "@earendil-works/pi-tui";
 import {
@@ -21,8 +14,6 @@ import {
   type QueritCountry,
   type QueritLanguage,
   type QueritSearchDefaults,
-  type QueritThinkingLevel,
-  type SearchWorkflow,
 } from "./config.js";
 
 /**
@@ -69,179 +60,7 @@ export async function promptForApiKey(ctx: ExtensionCommandContext): Promise<str
   });
 }
 
-export interface SummarySetupSelection {
-  defaultWorkflow: SearchWorkflow;
-  summaryModel?: string;
-  summaryThinkingLevel?: QueritThinkingLevel;
-}
-
-export async function promptForSummarySettings(
-  ctx: ExtensionCommandContext,
-): Promise<SummarySetupSelection | undefined> {
-  if (ctx.mode !== "tui") return { defaultWorkflow: "raw" };
-
-  const workflowChoice = await ctx.ui.select("Default Querit search workflow", [
-    "Raw results (recommended)",
-    "Auto-summary before returning results",
-  ]);
-  if (!workflowChoice) return undefined;
-  const defaultWorkflow: SearchWorkflow = workflowChoice.startsWith("Auto-summary") ? "summary" : "raw";
-
-  if (defaultWorkflow === "raw") return { defaultWorkflow: "raw" };
-
-  const availableModels = ctx.scopedModels.length > 0
-    ? ctx.scopedModels.map((entry) => entry.model)
-    : ctx.modelRegistry.getAvailable();
-  const modelReferences = new Set<string>();
-  if (ctx.model) modelReferences.add(`${ctx.model.provider}/${ctx.model.id}`);
-  for (const model of availableModels) modelReferences.add(`${model.provider}/${model.id}`);
-
-  if (modelReferences.size === 0) {
-    ctx.ui.notify("No Pi model is currently available for Querit summaries. Raw mode will still work.", "warning");
-    return { defaultWorkflow: "raw" };
-  }
-
-  const summaryModel = await promptForModelPicker(
-    ctx,
-    "Fixed model for optional Querit summaries",
-    [...modelReferences],
-  );
-  if (!summaryModel) return undefined;
-
-  const thinkingLevel = await promptForSummaryThinkingLevel(ctx, summaryModel);
-  if (thinkingLevel.cancelled) return undefined;
-  return {
-    defaultWorkflow,
-    summaryModel,
-    ...(thinkingLevel.level === undefined ? {} : { summaryThinkingLevel: thinkingLevel.level }),
-  };
-}
-
-interface ThinkingLevelPromptResult {
-  cancelled: boolean;
-  level?: QueritThinkingLevel;
-}
-
-async function promptForSummaryThinkingLevel(
-  ctx: ExtensionCommandContext,
-  modelReference: string,
-): Promise<ThinkingLevelPromptResult> {
-  const slash = modelReference.indexOf("/");
-  const model = ctx.modelRegistry.find(modelReference.slice(0, slash), modelReference.slice(slash + 1));
-  if (!model || !model.reasoning) return { cancelled: false };
-
-  const levels = getSupportedThinkingLevels(model);
-  if (levels.length === 0) return { cancelled: false };
-  const recommended = levels.includes("medium") ? "medium" : levels.find((level) => level !== "off") ?? "off";
-  const options = levels.map((level) => (level === recommended ? `${level} (recommended)` : level));
-
-  const choice = await ctx.ui.select(`Thinking intensity for ${modelReference} summaries`, options);
-  if (choice === undefined) return { cancelled: true };
-  const level = levels.find(
-    (candidate) => (candidate === recommended ? `${candidate} (recommended)` : candidate) === choice,
-  );
-  return level === undefined ? { cancelled: false } : { cancelled: false, level: level as QueritThinkingLevel };
-}
-
-const MODEL_PICKER_VISIBLE_ROWS = 5;
-
-function promptForModelPicker(
-  ctx: ExtensionCommandContext,
-  title: string,
-  models: string[],
-): Promise<string | undefined> {
-  const items: SelectItem[] = models.map((value) => ({ value, label: value }));
-  return ctx.ui.custom<string | undefined>((tui, theme, _keybindings, done) => {
-    const listTheme: SelectListTheme = {
-      selectedPrefix: (text) => theme.fg("accent", text),
-      selectedText: (text) => theme.fg("accent", theme.bold(text)),
-      description: (text) => theme.fg("dim", text),
-      scrollInfo: (text) => theme.fg("dim", text),
-      noMatch: (text) => theme.fg("dim", text),
-    };
-    const header: Component[] = [
-      new DynamicBorder((text: string) => theme.fg("accent", text)),
-      new Spacer(1),
-      new Text(theme.fg("accent", theme.bold(title)), 1, 0),
-      new Text(theme.fg("dim", "Type to filter • Up/Down to move • Enter to select • Esc to cancel"), 1, 0),
-      new Spacer(1),
-    ];
-    const footer: Component[] = [
-      new Spacer(1),
-      new DynamicBorder((text: string) => theme.fg("accent", text)),
-    ];
-    return new ModelPicker(items, listTheme, header, footer, tui, (value) => done(value), () => done(undefined));
-  });
-}
-
-class ModelPicker implements Focusable {
-  private _focused = false;
-  private list: SelectList;
-  private readonly input = new Input();
-
-  constructor(
-    private readonly items: SelectItem[],
-    private readonly listTheme: SelectListTheme,
-    private readonly header: Component[],
-    private readonly footer: Component[],
-    private readonly tui: TUI,
-    private readonly onSelect: (value: string) => void,
-    private readonly onCancel: () => void,
-  ) {
-    this.list = this.buildList("");
-  }
-
-  private buildList(filter: string): SelectList {
-    const query = filter.trim();
-    const filtered = query ? fuzzyFilter(this.items, query, (item) => item.value) : this.items;
-    const list = new SelectList(filtered, MODEL_PICKER_VISIBLE_ROWS, this.listTheme);
-    list.onSelect = (item) => this.onSelect(item.value);
-    list.onCancel = () => this.onCancel();
-    return list;
-  }
-
-  get focused(): boolean {
-    return this._focused;
-  }
-
-  set focused(value: boolean) {
-    this._focused = value;
-    this.input.focused = value;
-  }
-
-  render(width: number): string[] {
-    const lines: string[] = [];
-    for (const component of this.header) lines.push(...component.render(width));
-    lines.push(...this.input.render(width));
-    lines.push(...this.list.render(width));
-    for (const component of this.footer) lines.push(...component.render(width));
-    return lines;
-  }
-
-  handleInput(data: string): void {
-    const keybindings = getKeybindings();
-    if (
-      keybindings.matches(data, "tui.select.up") ||
-      keybindings.matches(data, "tui.select.down") ||
-      keybindings.matches(data, "tui.select.confirm") ||
-      keybindings.matches(data, "tui.select.cancel")
-    ) {
-      this.list.handleInput(data);
-    } else {
-      this.input.handleInput(data);
-      this.list = this.buildList(this.input.getValue());
-    }
-    this.tui.requestRender();
-  }
-
-  invalidate(): void {
-    this.input.invalidate();
-    this.list.invalidate();
-    for (const component of [...this.header, ...this.footer]) component.invalidate();
-  }
-}
-
-export type SetupMode = "replace-key" | "search-defaults" | "summary-settings";
+export type SetupMode = "replace-key" | "search-defaults";
 
 export function maskApiKeyHint(apiKey: string): string {
   const trimmed = apiKey.trim();
@@ -262,13 +81,10 @@ export async function promptForSetupMode(
     [
       "Replace API key (full re-setup)",
       "Change search defaults",
-      "Change summary settings",
     ],
   );
   if (!choice) return undefined;
-  if (choice.startsWith("Replace")) return "replace-key";
-  if (choice.startsWith("Change search")) return "search-defaults";
-  return "summary-settings";
+  return choice.startsWith("Replace") ? "replace-key" : "search-defaults";
 }
 
 export async function promptForSearchDefaults(
