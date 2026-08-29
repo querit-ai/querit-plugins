@@ -347,40 +347,44 @@ function makeStore(initial) {
     var tagId = NS + '/card.css';
     if (document.querySelector('style[data-plugin-css="' + tagId + '"]') !== null) return;
     var css = [
-      '.qr-card{list-style:none;border:1px solid var(--dsw-alias-border-l2);border-radius:12px;background:var(--dsw-alias-bg-layer-2)}',
-      '.qr-header{display:flex;align-items:center;gap:8px;width:100%;padding:12px 16px;background:none;border:0;cursor:pointer;color:inherit;font:inherit;text-align:left}',
-      '.qr-head{flex:1;min-width:0}',
-      '.qr-name{display:block;color:var(--dsw-alias-label-primary);font-size:14px;font-weight:600;line-height:1.5}',
-      '.qr-desc{display:block;color:var(--dsw-alias-label-tertiary);font-size:12px;line-height:1.5}',
-      '.qr-badge{white-space:nowrap;background:var(--dsw-alias-bg-module-platform);color:var(--dsw-alias-label-secondary);border-radius:999px;padding:1px 8px;font-size:11px;line-height:17px}',
-      '.qr-chev{color:var(--dsw-alias-label-tertiary);font-size:14px;line-height:1}',
-      '.qr-body{border-top:1px solid var(--dsw-alias-border-l2);padding:0 16px 12px}',
-      '.qr-readonly{color:var(--dsw-alias-label-tertiary);margin:8px 0 0;font-size:12px}',
-      '.qr-field{display:flex;flex-direction:column;gap:6px;padding:12px 0;border-bottom:1px solid var(--dsw-alias-border-l1)}',
-      '.qr-field:last-child{border-bottom:0}',
+      '.qr-card{list-style:none;border:1px solid var(--dsw-alias-border-l2);background:var(--dsw-alias-bg-layer-3);border-radius:12px;transition:border-color .16s,background .16s}',
+      '.qr-card:hover{border-color:var(--dsw-alias-label-dimmed)}',
+      '.qr-card.qr-open{background:var(--dsw-alias-bg-layer-2);border-color:var(--dsw-alias-label-dimmed)}',
+      '.qr-header{appearance:none;display:flex;align-items:center;gap:12px;width:100%;padding:14px 16px;background:0 0;border:0;border-radius:12px;cursor:pointer;color:inherit;font:inherit;text-align:left}',
+      '.qr-header:focus-visible{outline:2px solid var(--dsw-alias-brand-primary);outline-offset:-2px}',
+      '.qr-head{flex-direction:column;flex:1;min-width:0;gap:4px;display:flex}',
+      '.qr-name{color:var(--dsw-alias-label-primary);font-size:15px;font-weight:600;line-height:1.4}',
+      '.qr-desc{color:var(--dsw-alias-label-tertiary);font-size:13px;line-height:1.5}',
+      '.qr-pending{white-space:nowrap;background:var(--dsw-alias-bg-module-platform);color:var(--dsw-alias-label-secondary);border-radius:999px;flex:none;padding:1px 8px;font-size:11px;font-weight:500;line-height:17px}',
+      '.qr-chev{color:var(--dsw-alias-label-tertiary);flex:none;transition:transform .16s}',
+      '.qr-card.qr-open .qr-chev{transform:rotate(180deg)}',
+      '.qr-body{border-top:1px solid var(--dsw-alias-border-l2);margin:0 16px;padding-bottom:8px}',
+      '.qr-readonly{color:var(--dsw-alias-label-tertiary);margin:12px 0 0;font-size:12px;line-height:1.5}',
+      '.qr-field{display:flex;flex-direction:column;gap:6px;padding:12px 0}',
+      '.qr-field+.qr-field{border-top:1px solid var(--dsw-alias-border-l2)}',
       '.qr-fhead{display:flex;align-items:center;gap:8px}',
-      '.qr-grow{flex:1}',
       '.qr-label{flex:1;min-width:0;color:var(--dsw-alias-label-primary);font-size:13px;font-weight:500;line-height:1.5}',
-      '.qr-tag{white-space:nowrap;color:var(--dsw-alias-label-tertiary);border-radius:999px;padding:1px 8px;font-size:11px;line-height:17px}',
-      '.qr-tagOver{white-space:nowrap;background:var(--dsw-alias-bg-module-platform);color:var(--dsw-alias-label-secondary);border-radius:999px;padding:1px 8px;font-size:11px;line-height:17px}',
-      '.qr-reset{font:inherit;color:var(--dsw-alias-label-secondary);cursor:pointer;background:none;border:none;padding:0;font-size:12px;line-height:1.5}',
+      '.qr-badges{align-items:center;gap:8px;display:inline-flex}',
+      '.qr-tagOver{white-space:nowrap;background:var(--dsw-alias-bg-module-platform);color:var(--dsw-alias-label-secondary);border-radius:999px;padding:1px 8px;font-size:11px;font-weight:500;line-height:17px}',
+      '.qr-reset{font:inherit;color:var(--dsw-alias-label-secondary);cursor:pointer;background:0 0;border:none;padding:0;font-size:12px;line-height:1.5}',
       '.qr-reset:hover:not(:disabled){color:var(--dsw-alias-label-primary)}',
       '.qr-reset:disabled{cursor:default}',
       '.qr-input{border:1px solid var(--dsw-alias-border-l2);background:var(--dsw-alias-bg-layer-3);height:34px;font:inherit;color:var(--dsw-alias-label-primary);border-radius:8px;padding:0 12px;font-size:13px;line-height:1.5;box-sizing:border-box}',
       '.qr-input:focus-visible{border-color:var(--dsw-alias-brand-primary);outline:none}',
       '.qr-input:disabled{color:var(--dsw-alias-label-tertiary);cursor:default}',
+      '.qr-input-invalid{border-color:var(--dsw-alias-label-error)}',
       '.qr-check{width:16px;height:16px;accent-color:var(--dsw-alias-brand-primary);cursor:pointer;flex:none}',
       '.qr-check:disabled{cursor:default}',
-      '.qr-invalid{border-color:var(--dsw-alias-label-error)}',
-      '.qr-err{color:var(--dsw-alias-label-error);margin:0;font-size:12px;line-height:1.5}',
+      '.qr-invalid{color:var(--dsw-alias-label-error);margin:0;font-size:12px;line-height:1.5}',
       '.qr-hint{color:var(--dsw-alias-label-tertiary);margin:0;font-size:12px;line-height:1.5}',
-      '.qr-keybadge{color:var(--dsw-alias-label-secondary);font-size:12px;line-height:1.5}',
-      '.qr-foot{display:flex;align-items:center;justify-content:flex-end;gap:8px;padding-top:12px}',
-      '.qr-failed{color:var(--dsw-alias-label-error);margin:0;font-size:12px;line-height:1.5;flex:1}',
-      '.qr-btn{border:1px solid var(--dsw-alias-border-l2);background:var(--dsw-alias-bg-layer-3);color:var(--dsw-alias-label-primary);border-radius:8px;padding:6px 14px;font:inherit;font-size:13px;cursor:pointer}',
-      '.qr-btn:hover:not(:disabled){border-color:var(--dsw-alias-label-secondary)}',
-      '.qr-save{border-color:var(--dsw-alias-brand-primary);background:var(--dsw-alias-bg-layer-3);color:var(--dsw-alias-label-primary);font-weight:600}',
-      '.qr-btn:disabled{opacity:.5;cursor:default}'
+      '.qr-foot{border-top:1px solid var(--dsw-alias-border-l2);justify-content:flex-end;align-items:center;gap:8px;padding:12px 0 4px;display:flex}',
+      '.qr-failed{min-width:0;color:var(--dsw-alias-label-error);flex:1;margin:0;font-size:12px;line-height:1.5}',
+      '.qr-btn{appearance:none;font:inherit;cursor:pointer;border:1px solid transparent;border-radius:8px;padding:5px 14px;font-size:13px;line-height:1.5}',
+      '.qr-discard{border-color:var(--dsw-alias-border-l2);color:var(--dsw-alias-label-secondary);background:transparent}',
+      '.qr-discard:hover:not(:disabled){color:var(--dsw-alias-label-primary);border-color:var(--dsw-alias-label-dimmed)}',
+      '.qr-save{background:var(--dsw-alias-label-primary);color:var(--dsw-alias-bg-layer-3)}',
+      '.qr-btn:disabled{opacity:.4;cursor:default}',
+      '.qr-btn:focus-visible{outline:2px solid var(--dsw-alias-brand-primary);outline-offset:1px}'
     ].join('');
     var tag = document.createElement('style');
     tag.dataset.plugin = NS;
@@ -393,6 +397,8 @@ function makeStore(initial) {
     title: 'Querit web search',
     description: 'Querit-backed search and fetch provider.',
     readOnly: 'This deployment stores settings read-only.',
+    expand: 'Show settings',
+    collapse: 'Hide settings',
     pass: 'Password',
     save: 'Save',
     saving: 'Saving\u2026',
@@ -429,6 +435,8 @@ function makeStore(initial) {
     title: 'Querit 网页搜索',
     description: '基于 Querit 的搜索与抓取提供方。',
     readOnly: '本部署的设置为只读。',
+    expand: '展开设置',
+    collapse: '收起设置',
     pass: '密码',
     save: '保存',
     saving: '保存中\u2026',
@@ -567,32 +575,79 @@ function makeStore(initial) {
     };
   };
 
+  /** Chevron-down icon mirroring the official PluginCard toggle glyph. */
+  function ChevronDown(props) {
+    var className = props.className || '';
+    return React.createElement(
+      'svg',
+      {
+        className: className,
+        width: 14,
+        height: 14,
+        viewBox: '0 0 14 14',
+        fill: 'none',
+        xmlns: 'http://www.w3.org/2000/svg',
+        'aria-hidden': true,
+        focusable: false
+      },
+      React.createElement('path', {
+        d: 'M3.5 5.25L7 8.75L10.5 5.25',
+        stroke: 'currentColor',
+        strokeWidth: 1.4,
+        strokeLinecap: 'round',
+        strokeLinejoin: 'round'
+      })
+    );
+  }
+
   /** One labeled control row. `inline` puts the control on the label line (toggle rows). */
   function FieldRow(props) {
     var inline = props.inline === true;
+    var id = props.id;
+    var inputProps = Object.assign({}, props.inputProps || {});
+    var as = inputProps.as === 'select' ? 'select' : 'input';
+    delete inputProps.as;
+    var controlClass = 'qr-input' + (props.state && props.state.invalid ? ' qr-input-invalid' : '');
+    inputProps.id = id;
+    inputProps.className = controlClass;
+    var control;
+    if (as === 'select') {
+      control = React.createElement('select', inputProps, props.options || []);
+    } else {
+      control = React.createElement('input', inputProps);
+    }
+    var headChildren = [
+      inline
+        ? React.createElement('label', { key: 'label', className: 'qr-label', htmlFor: id }, props.label)
+        : React.createElement('span', { key: 'label', className: 'qr-label' }, props.label),
+      props.state && props.state.overridden
+        ? React.createElement(
+            'span',
+            { key: 'badges', className: 'qr-badges' },
+            React.createElement('span', { className: 'qr-tagOver' }, props.overriddenLabel),
+            props.onReset
+              ? React.createElement(
+                  'button',
+                  { type: 'button', className: 'qr-reset', disabled: props.disabled || !props.state.overridden, onClick: props.onReset },
+                  props.resetLabel
+                )
+              : null
+          )
+        : null,
+      inline ? props.children : null
+    ];
+    var bodyChildren = inline ? null : control;
+    var help = props.state && props.state.invalid
+      ? React.createElement('p', { className: 'qr-invalid' }, props.invalidLabel)
+      : props.hint
+        ? React.createElement('p', { className: 'qr-hint' }, props.hint)
+        : null;
     return React.createElement(
       'div',
       { className: 'qr-field' },
-      React.createElement(
-        'div',
-        { className: 'qr-fhead' },
-        React.createElement('span', { className: 'qr-label' }, props.label),
-        props.state && props.state.overridden
-          ? React.createElement('span', { className: 'qr-tagOver' }, props.overriddenLabel)
-          : null,
-        props.state && props.onReset
-          ? React.createElement(
-              'button',
-              { type: 'button', className: 'qr-reset', disabled: props.disabled || !props.state.overridden, onClick: props.onReset },
-              props.resetLabel
-            )
-          : null,
-        inline ? React.createElement('span', { className: 'qr-grow' }) : null,
-        inline ? props.children : null
-      ),
-      inline ? null : props.children,
-      props.state && props.state.invalid ? React.createElement('p', { className: 'qr-err' }, props.invalidLabel) : null,
-      props.hint ? React.createElement('p', { className: 'qr-hint' }, props.hint) : null
+      React.createElement('div', { className: 'qr-fhead' }, headChildren),
+      bodyChildren,
+      help
     );
   }
 
@@ -613,67 +668,64 @@ function makeStore(initial) {
     var text = function (control) {
       return control.text;
     };
+    var title = t('title');
     return React.createElement(
       'li',
       { className: 'qr-card' + (open ? ' qr-open' : '') },
       React.createElement(
         'button',
-        { type: 'button', className: 'qr-header', 'aria-expanded': open ? 'true' : 'false', onClick: function () { setOpen(!open); } },
+        {
+          type: 'button',
+          className: 'qr-header',
+          'aria-expanded': open ? 'true' : 'false',
+          'aria-label': t(open ? 'collapse' : 'expand') + ': ' + title,
+          onClick: function () { setOpen(!open); }
+        },
         React.createElement(
           'span',
           { className: 'qr-head' },
-          React.createElement('span', { className: 'qr-name' }, t('title')),
+          React.createElement('span', { className: 'qr-name' }, title),
           React.createElement('span', { className: 'qr-desc' }, t('description'))
         ),
-        state.dirty ? React.createElement('span', { className: 'qr-badge' }, t('unsaved')) : null,
-        React.createElement('span', { className: 'qr-chev' }, open ? '\u2212' : '+')
+        state.dirty ? React.createElement('span', { className: 'qr-pending' }, t('unsaved')) : null,
+        React.createElement(ChevronDown, { className: 'qr-chev' })
       ),
       open
         ? React.createElement(
             'div',
             { className: 'qr-body' },
-            disabled ? React.createElement('p', { className: 'qr-readonly' }, t('readOnly')) : null,
+            disabled ? React.createElement('p', { className: 'qr-readonly', role: 'status' }, t('readOnly')) : null,
             React.createElement(
               FieldRow,
               {
+                id: 'plugin-config-querit-key',
                 label: t('keyLabel'),
-                hint: t('keyHint'),
-                state: state.apiKey,
+                hint: state.apiKeyConfigured
+                  ? t('keySet') + ' ' + state.apiKeyRef + '.'
+                  : t('keyUnset'),
                 disabled: disabled || !state.apiKeyWritable,
-                invalidLabel: t('invalidNumber')
-              },
-              React.createElement('input', {
-                className: 'qr-input',
-                type: 'password',
-                autoComplete: 'new-password',
-                disabled: disabled || !state.apiKeyWritable,
-                placeholder: state.apiKeyConfigured ? '\u2022\u2022\u2022\u2022\u2022\u2022' : '',
-                value: text(state.apiKey),
-                onChange: function (event) { props.edit('apiKey', event.target.value); }
-              })
+                inputProps: {
+                  className: 'qr-input',
+                  type: 'password',
+                  autoComplete: 'new-password',
+                  disabled: disabled || !state.apiKeyWritable,
+                  placeholder: state.apiKeyConfigured ? '\u2022\u2022\u2022\u2022\u2022\u2022' : '',
+                  value: text(state.apiKey),
+                  onChange: function (event) { props.edit('apiKey', event.target.value); }
+                }
+              }
             ),
-            React.createElement(
-              'p',
-              { className: 'qr-keybadge' },
-              state.apiKeyConfigured ? t('keySet') + ' ' + state.apiKeyRef + '.' : t('keyUnset')
-            ),
-            field(
-              props,
-              t('refLabel'),
-              t('refHint'),
-              state.apiKeyEnv,
-              'apiKeyEnv',
-              disabled
-            ),
-            field(props, t('countLabel'), t('countHint'), state.count, 'count', disabled),
-            field(props, t('timeRangeLabel'), t('timeRangeHint'), state.timeRange, 'timeRange', disabled),
-            field(props, t('languagesLabel'), t('languagesHint'), state.languages, 'languages', disabled),
-            field(props, t('countriesLabel'), t('countriesHint'), state.countries, 'countries', disabled),
-            field(props, t('includeLabel'), t('includeHint'), state.includeDomains, 'includeDomains', disabled),
-            field(props, t('excludeLabel'), t('excludeHint'), state.excludeDomains, 'excludeDomains', disabled),
+            field(props, t('refLabel'), t('refHint'), state.apiKeyEnv, 'apiKeyEnv', disabled, 'plugin-config-querit-env'),
+            field(props, t('countLabel'), t('countHint'), state.count, 'count', disabled, 'plugin-config-querit-count', true),
+            field(props, t('timeRangeLabel'), t('timeRangeHint'), state.timeRange, 'timeRange', disabled, 'plugin-config-querit-time'),
+            field(props, t('languagesLabel'), t('languagesHint'), state.languages, 'languages', disabled, 'plugin-config-querit-languages'),
+            field(props, t('countriesLabel'), t('countriesHint'), state.countries, 'countries', disabled, 'plugin-config-querit-countries'),
+            field(props, t('includeLabel'), t('includeHint'), state.includeDomains, 'includeDomains', disabled, 'plugin-config-querit-include'),
+            field(props, t('excludeLabel'), t('excludeHint'), state.excludeDomains, 'excludeDomains', disabled, 'plugin-config-querit-exclude'),
             React.createElement(
               FieldRow,
               {
+                id: 'plugin-config-querit-content',
                 label: t('contentLabel'),
                 hint: t('contentHint'),
                 state: state.includeContent,
@@ -694,34 +746,32 @@ function makeStore(initial) {
             React.createElement(
               FieldRow,
               {
+                id: 'plugin-config-querit-format',
                 label: t('formatLabel'),
                 hint: t('formatHint'),
                 state: state.fetchFormat,
                 disabled: disabled,
                 overriddenLabel: t('overridden'),
                 resetLabel: t('reset'),
-                onReset: function () { props.resetField('fetchFormat'); }
-              },
-              React.createElement(
-                'select',
-                {
-                  className: 'qr-input',
+                onReset: function () { props.resetField('fetchFormat'); },
+                inputProps: {
                   disabled: disabled,
                   value: text(state.fetchFormat),
-                  onChange: function (event) { props.edit('fetchFormat', event.target.value); }
+                  onChange: function (event) { props.edit('fetchFormat', event.target.value); },
+                  as: 'select'
                 },
-                FETCH_FORMATS.map(function (format) {
+                options: FETCH_FORMATS.map(function (format) {
                   return React.createElement('option', { key: format, value: format }, format);
                 })
-              )
+              }
             ),
             React.createElement(
               'div',
               { className: 'qr-foot' },
-              state.failed ? React.createElement('p', { className: 'qr-failed' }, t('saveFailed')) : null,
+              state.failed ? React.createElement('p', { className: 'qr-failed', role: 'status' }, t('saveFailed')) : null,
               React.createElement(
                 'button',
-                { type: 'button', className: 'qr-btn', disabled: (!state.dirty && !state.failed) || state.saving, onClick: props.discard },
+                { type: 'button', className: 'qr-btn qr-discard', disabled: (!state.dirty && !state.failed) || state.saving, onClick: props.discard },
                 t('discard')
               ),
               React.createElement(
@@ -736,26 +786,30 @@ function makeStore(initial) {
   }
 
   /** Extract one section field's row into a shared control render. */
-  function field(props, label, hint, state, name, disabled) {
+  function field(props, label, hint, state, name, disabled, id, numeric) {
+    var inputProps = {
+      className: 'qr-input' + (state.invalid ? ' qr-input-invalid' : ''),
+      type: numeric === true ? 'number' : 'text',
+      disabled: disabled,
+      value: state.text,
+      onChange: function (event) { props.edit(name, event.target.value); }
+    };
+    if (numeric === true) inputProps.inputMode = 'numeric';
+    if (state.invalid) inputProps['aria-invalid'] = true;
     return React.createElement(
       FieldRow,
       {
+        id: id,
         label: label,
         hint: hint,
         state: state,
         disabled: disabled,
-        invalidLabel: name === 'count' ? props.t('invalidNumber') : '',
+        invalidLabel: props.t('invalidNumber'),
         overriddenLabel: props.t('overridden'),
         resetLabel: props.t('reset'),
-        onReset: function () { props.resetField(name); }
-      },
-      React.createElement('input', {
-        className: 'qr-input' + (state.invalid ? ' qr-invalid' : ''),
-        type: name === 'count' ? 'number' : 'text',
-        disabled: disabled,
-        value: state.text,
-        onChange: function (event) { props.edit(name, event.target.value); }
-      })
+        onReset: function () { props.resetField(name); },
+        inputProps: inputProps
+      }
     );
   }
 
