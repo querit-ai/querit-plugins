@@ -2,7 +2,7 @@
 
 Official [Querit](https://www.querit.ai) search integrations for automation and AI agent platforms.
 
-[Querit](https://www.querit.ai) delivers real-time, authoritative web search results and clean page content for LLM applications. Each integration in this repository connects one platform to the Querit API (`/v1/search` + `/v1/contents`) for live web search and page fetching — with cited sources, domain/region/language/time-range filters, and output that is always treated as untrusted web data.
+[Querit](https://www.querit.ai) delivers real-time, authoritative web search results and clean page content for LLM applications. Each integration in this repository connects one platform to the Querit API (`/v1/search` + `/v1/contents`) for live web search and page fetching — with cited sources, domain/region/language/time-range filters, and output that is always treated as untrusted web data. The Oh My Pi entry below documents an upstream built-in provider, not a package in this repository.
 
 | Platform | Package | Install |
 | --- | --- | --- |
@@ -11,6 +11,7 @@ Official [Querit](https://www.querit.ai) search integrations for automation and 
 | [OpenCode](https://opencode.ai) | `opencode-querit` | `"plugin": ["opencode-querit"]` |
 | [Claude Code](https://code.claude.com/docs/en/plugins) | `claude-code-querit` | `/plugin marketplace add querit-ai/querit-plugins` |
 | [n8n](https://n8n.io) | `n8n-nodes-querit` | Install as an n8n community node |
+| [Oh My Pi (OMP)](https://omp.sh) | Built-in Querit provider (not a plugin) | No install; available after upstream PR merges |
 
 Two more integrations live in this repository but are not generally available yet:
 
@@ -19,11 +20,31 @@ Two more integrations live in this repository but are not generally available ye
 | [Zapier](https://zapier.com) | `zapier-querit/` | Complete and locally validated; awaiting registration and Zapier public review |
 | [Browserbase](https://www.browserbase.com) | `browserbase-querit-demo/` | Reference demo, not a published package |
 
-How each integration reads the API key and search defaults is covered in its own section below.
+How each package integration reads the API key and search defaults is covered in its own section below; the Oh My Pi section documents its upstream built-in provider.
 
 ## Get an API key
 
 Sign up on [Querit.ai](https://www.querit.ai) to get an API key with **1,000 free API calls per month** — no credit card required. The same key works for all integrations.
+
+## querit — Oh My Pi (OMP)
+
+The pending upstream OMP change adds a built-in Querit provider for both its `web_search` provider chain and the URL-fetch/reader path used by the built-in `read` tool. This is **not** an npm plugin from this repository, so there is nothing to install here. **Available after the upstream PR is merged**.
+
+**Credentials**
+
+- Set `QUERIT_API_KEY` in the environment that launches OMP, or
+- run `/login querit` in OMP and paste/save the key when prompted.
+
+**Select Querit**
+
+After the upstream PR is merged, make Querit the first `web_search` provider and select it for URL fetching with:
+
+```bash
+omp config set providers.webSearchOrder '["querit"]'
+omp config set providers.fetch querit
+```
+
+`providers.webSearchOrder` controls `web_search` provider priority, while `providers.fetch` controls the reader backend used when OMP's `read` tool fetches an HTTP(S) URL. After the upstream change lands, its search provider will send requests to `POST https://api.querit.ai/v1/search` with only `{ query, count }` (`count` defaults to `10` and is clamped to `1..20`), and its URL-content reader will send requests to `POST https://api.querit.ai/v1/contents`; both use Bearer authentication. Querit-specific language, site/domain, and date options remain unset so the service uses its defaults.
 
 ## pi-querit — Pi
 
