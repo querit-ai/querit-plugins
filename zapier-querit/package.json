@@ -1,6 +1,6 @@
 {
   "name": "zapier-querit",
-  "version": "1.0.1",
+  "version": "1.0.2",
   "description": "Querit live web search integration for Zapier",
   "main": "index.js",
   "private": true,

@@ -14,6 +14,7 @@ const test = async (z, bundle) => {
 
 module.exports = {
   type: 'custom',
+  connectionLabel: 'Querit Account',
   fields: [
     {
       key: 'apiKey',

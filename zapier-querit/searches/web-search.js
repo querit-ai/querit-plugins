@@ -176,6 +176,7 @@ module.exports = {
     description: 'Finds live web search results.',
   },
   operation: {
+    cleanInputData: false,
     inputFields: [
       {
         key: 'query',

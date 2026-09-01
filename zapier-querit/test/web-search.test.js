@@ -56,7 +56,7 @@ describe('custom authentication', () => {
         ),
       }),
     ]);
-    expect(App.authentication.connectionLabel).toBeUndefined();
+    expect(App.authentication.connectionLabel).toBe('Querit Account');
   });
 
   it('rejects a missing API key before making a network request', async () => {
@@ -100,6 +100,7 @@ describe('custom authentication', () => {
 describe('Find Web Search Results', () => {
   it('is the only public operation and uses publishing-compliant copy', () => {
     expect(Object.keys(App.searches)).toEqual(['web_search']);
+    expect(App.searches.web_search.operation.cleanInputData).toBe(false);
     expect(App.searches.web_search.display).toEqual({
       label: 'Find Web Search Results',
       description: 'Finds live web search results.',
