@@ -216,10 +216,16 @@ claude plugin validate . --strict
 claude plugin validate ./claude-code-querit/plugin --strict
 ```
 
-Publishing is per package. From that package's directory, run
-`npm version <version> --no-git-tag-version` so `package.json` and
-`package-lock.json` stay in sync, then verify and run `npm publish`. Releases
-are tagged on GitHub with the package name prefix, e.g. `pi-querit@<version>`.
+Publishing is per package. `dsh-querit`, `opencode-querit`, and `pi-querit`
+publish automatically: run `npm version <version> --no-git-tag-version` in the
+package directory (so `package.json` and `package-lock.json` stay in sync),
+commit, and push to `main`. The per-package publish workflow skips pushes
+whose version is already on npm and otherwise runs the package gates and
+publishes with npm provenance. `n8n-nodes-querit` keeps its tag-triggered
+flow: push an `n8n-nodes-querit@<version>` tag. All these workflows publish
+through npm trusted publishing (OIDC, no NPM_TOKEN); each package needs a
+one-time GitHub Actions trusted-publisher entry in its npm settings pointing
+at its workflow file.
 
 ## License
 
