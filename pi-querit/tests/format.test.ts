@@ -6,7 +6,7 @@ import { limitToolOutput } from "../src/output.js";
 import { sanitizeTerminalText } from "../src/sanitize.js";
 
 describe("response formatting", () => {
-  it("keeps source URLs and marks search data as untrusted", () => {
+  it("keeps source URLs and search metadata", () => {
     const text = formatSearchResponse({
       query: "current news",
       searchId: "9007199254740993123",
@@ -20,7 +20,7 @@ describe("response formatting", () => {
       }],
     });
 
-    expect(text).toContain("untrusted web data");
+    expect(text).toContain("# Querit search results for: current news");
     expect(text).toContain("https://example.com/article");
     expect(text).toContain("9007199254740993123");
     expect(text).toContain("First excerpt");
@@ -38,7 +38,7 @@ describe("response formatting", () => {
       searchTime: 2,
     }, ["https://example.com/", "https://missing.example/"], "markdown");
 
-    expect(text).toContain("BEGIN UNTRUSTED PAGE CONTENT");
+    expect(text).toContain("BEGIN PAGE CONTENT");
     expect(text).toContain("# Page body");
     expect(text).toContain("https://missing.example/");
   });
