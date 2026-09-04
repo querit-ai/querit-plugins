@@ -20,31 +20,11 @@ Two more integrations live in this repository but are not generally available ye
 | [Zapier](https://zapier.com) | `zapier-querit/` | Complete and locally validated; awaiting registration and Zapier public review |
 | [Browserbase](https://www.browserbase.com) | `browserbase-querit-demo/` | Reference demo, not a published package |
 
-How each package integration reads the API key and search defaults is covered in its own section below; the Oh My Pi section documents its upstream built-in provider.
+How each package integration reads the API key and search defaults is covered in its own section below; the Oh My Pi section documents its upstream built-in provider. Recent updates are summarized in [CHANGES.md](./CHANGES.md).
 
 ## Get an API key
 
 Sign up on [Querit.ai](https://www.querit.ai) to get an API key with **1,000 free API calls per month** — no credit card required. The same key works for all integrations.
-
-## querit — Oh My Pi (OMP)
-
-The pending upstream OMP change adds a built-in Querit provider for both its `web_search` provider chain and the URL-fetch/reader path used by the built-in `read` tool. This is **not** an npm plugin from this repository, so there is nothing to install here. **Available after the upstream PR is merged**.
-
-**Credentials**
-
-- Set `QUERIT_API_KEY` in the environment that launches OMP, or
-- run `/login querit` in OMP and paste/save the key when prompted.
-
-**Select Querit**
-
-After the upstream PR is merged, make Querit the first `web_search` provider and select it for URL fetching with:
-
-```bash
-omp config set providers.webSearchOrder '["querit"]'
-omp config set providers.fetch querit
-```
-
-`providers.webSearchOrder` controls `web_search` provider priority, while `providers.fetch` controls the reader backend used when OMP's `read` tool fetches an HTTP(S) URL. After the upstream change lands, its search provider will send requests to `POST https://api.querit.ai/v1/search` with only `{ query, count }` (`count` defaults to `10` and is clamped to `1..20`), and its URL-content reader will send requests to `POST https://api.querit.ai/v1/contents`; both use Bearer authentication. Querit-specific language, site/domain, and date options remain unset so the service uses its defaults.
 
 ## pi-querit — Pi
 
@@ -166,6 +146,26 @@ An n8n community node with **Search Web** and **Fetch Content** operations, nati
 
 Install `n8n-nodes-querit` through n8n's community-node interface, then create a **Querit API** credential and paste in the API key. n8n stores it as an encrypted credential; the node never writes it into workflow JSON or execution data. See the [n8n-nodes-querit README](./n8n-nodes-querit/README.md) for operation details and development instructions.
 
+## querit — Oh My Pi (OMP)
+
+The pending upstream OMP change adds a built-in Querit provider for both its `web_search` provider chain and the URL-fetch/reader path used by the built-in `read` tool. This is **not** an npm plugin from this repository, so there is nothing to install here. **Available after the upstream PR is merged**.
+
+**Credentials**
+
+- Set `QUERIT_API_KEY` in the environment that launches OMP, or
+- run `/login querit` in OMP and paste/save the key when prompted.
+
+**Select Querit**
+
+After the upstream PR is merged, make Querit the first `web_search` provider and select it for URL fetching with:
+
+```bash
+omp config set providers.webSearchOrder '["querit"]'
+omp config set providers.fetch querit
+```
+
+`providers.webSearchOrder` controls `web_search` provider priority, while `providers.fetch` controls the reader backend used when OMP's `read` tool fetches an HTTP(S) URL. After the upstream change lands, its search provider will send requests to `POST https://api.querit.ai/v1/search` with only `{ query, count }` (`count` defaults to `10` and is clamped to `1..20`), and its URL-content reader will send requests to `POST https://api.querit.ai/v1/contents`; both use Bearer authentication. Querit-specific language, site/domain, and date options remain unset so the service uses its defaults.
+
 ## zapier-querit — Zapier
 
 A Zapier Platform CLI integration with one Search action, **Find Web Search Results**. Authentication is a masked custom API-key field, tested with a fixed one-result `POST /v1/search`.
@@ -197,29 +197,35 @@ querit-plugins/
 
 ## Development
 
-Work inside a package directory; the root has no scripts:
+Work inside a package directory; the root has no scripts. After `npm ci`, run that package's gates:
 
-```bash
-cd pi-querit && npm ci && npm run check && npm test
-cd dsh-querit && npm ci && npm run check && npm run build && npm test
-cd opencode-querit && npm ci && npm run check && npm run build && npm test
-cd claude-code-querit && npm ci && npm run verify
-cd n8n-nodes-querit && npm ci --ignore-scripts && npm run check && npm run lint && npm test && npm run build
-cd zapier-querit && npm ci && npm run check && npm run build
-cd browserbase-querit-demo && npm ci && npm run check && npm test && npm run build && npm run pack
-```
+| Package | Gates |
+| --- | --- |
+| `pi-querit/` | `npm run check && npm test` |
+| `dsh-querit/` | `npm run check && npm run build && npm test` |
+| `opencode-querit/` | `npm run check && npm run build && npm test` |
+| `claude-code-querit/` | `npm run verify` |
+| `n8n-nodes-querit/` | install with `npm ci --ignore-scripts`, then `npm run check && npm run lint && npm test && npm run build` |
+| `zapier-querit/` | `npm run check && npm run build` |
+| `browserbase-querit-demo/` | `npm run check && npm test && npm run build` |
 
-The Claude Code marketplace catalog is validated separately from the repository root:
+Every npm package runs its gates automatically on publish (`prepack`), so manual runs matter only while developing. The Claude Code marketplace catalog is validated separately from the repository root:
 
 ```bash
 claude plugin validate . --strict
 claude plugin validate ./claude-code-querit/plugin --strict
 ```
 
-Publishing is per package. From that package's directory, run
-`npm version <version> --no-git-tag-version` so `package.json` and
-`package-lock.json` stay in sync, then verify and run `npm publish`. Releases
-are tagged on GitHub with the package name prefix, e.g. `pi-querit@<version>`.
+Publishing is per package. `dsh-querit`, `opencode-querit`, and `pi-querit`
+publish automatically: run `npm version <version> --no-git-tag-version` in the
+package directory (so `package.json` and `package-lock.json` stay in sync),
+commit, and push to `main`. The per-package publish workflow skips pushes
+whose version is already on npm and otherwise runs the package gates and
+publishes with npm provenance. `n8n-nodes-querit` keeps its tag-triggered
+flow: push an `n8n-nodes-querit@<version>` tag. All these workflows publish
+through npm trusted publishing (OIDC, no NPM_TOKEN); each package needs a
+one-time GitHub Actions trusted-publisher entry in its npm settings pointing
+at its workflow file.
 
 ## License
 

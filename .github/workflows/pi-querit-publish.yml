@@ -1,0 +1,72 @@
+# Publish setup (one time):
+# 1. In npm package settings, add a GitHub Actions trusted publisher.
+# 2. Set owner=querit-ai, repository=querit-plugins,
+#    workflow=pi-querit-publish.yml.
+# 3. Leave the npm environment blank and do not configure an NPM_TOKEN.
+#
+# Publishing is automatic: bump the version in package.json and push to main.
+# Pushes whose version is already on npm are skipped, so docs-only or
+# follow-up commits publish nothing. The id-token permission and npm 11 OIDC
+# client below produce the provenance attestation without a long-lived
+# publishing secret; prepack runs the same check/test gates as a local
+# `npm publish`.
+
+name: Publish pi Querit
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - 'pi-querit/**'
+      - '.github/workflows/pi-querit-publish.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  id-token: write
+
+concurrency:
+  group: publish-pi-querit
+  cancel-in-progress: false
+
+defaults:
+  run:
+    working-directory: pi-querit
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Node.js 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22.22.0'
+          registry-url: 'https://registry.npmjs.org/'
+          cache: npm
+          cache-dependency-path: pi-querit/package-lock.json
+
+      - name: Enable npm trusted publishing
+        run: npm install --global npm@11
+
+      - name: Check npm for the committed version
+        id: registry
+        run: |
+          VERSION="$(node -p "require('./package.json').version")"
+          if npm view "pi-querit@${VERSION}" version >/dev/null 2>&1; then
+            echo "published=true" >> "$GITHUB_OUTPUT"
+            echo "pi-querit@${VERSION} is already on npm; nothing to publish."
+          else
+            echo "published=false" >> "$GITHUB_OUTPUT"
+            echo "pi-querit@${VERSION} is not on npm yet; publishing."
+          fi
+
+      - name: Install dependencies
+        if: steps.registry.outputs.published == 'false'
+        run: npm ci --ignore-scripts
+
+      - name: Publish with provenance
+        if: steps.registry.outputs.published == 'false'
+        run: npm publish
