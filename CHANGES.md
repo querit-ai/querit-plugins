@@ -3,6 +3,11 @@
 Recent updates across the repository, newest first. Full history for each
 package is its git log.
 
+## 2026-09-04
+
+- **pi-querit 1.1.2** — load the extension from the package root (`index.ts`)
+  instead of `src/`, so Pi lists it as `pi-querit` rather than `pi-querit:src`.
+
 ## 2026-09-02
 
 - **pi-querit 1.1.1** — dropped the per-response "untrusted web data"
