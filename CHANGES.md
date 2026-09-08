@@ -5,6 +5,13 @@ package is its git log.
 
 ## 2026-09-08
 
+- **dsh-querit 1.1.1** — the settings card outline now uses the design system's
+  surface token (`.5px solid var(--dsw-alias-border-l4)`, radius 16px) exactly
+  as every dsh card does, instead of the divider token (`border-l2`, 10%
+  alpha at 1px), which left the Querit row looking like it had no border
+  beside the official cards. The card's text inputs take the same surface
+  outline; `border-l2` stays on the internal separators and the discard
+  button, where dsh uses it too.
 - **dsh-querit 1.1.0** — migrated to the dsh 0.1.2 host seams: the settings
   namespace now registers through `ctx.settings.installSection` (the
   `installSettingsSection`/`settingsNamespace` helpers were removed upstream),
