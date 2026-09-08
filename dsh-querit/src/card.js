@@ -166,9 +166,9 @@
   }
 
   /** Bridges the web-search-querit scope and the credentials domain onto the card. */
-  function QueritCardController(scope, api) {
+  function QueritCardController(scope, ctx) {
     this.scope = scope;
-    this.api = api;
+    this.ctx = ctx;
     this.credential = { ref: '', configured: false, writable: true };
     this.form = new QueritFormModel(
       scope,
@@ -219,16 +219,16 @@
       this.credential = { ref: ref, configured: false, writable: true };
       this.store.set(this.projection());
     }
-    this.api.credentials
-      .describe({ refs: [ref] })
+    this.ctx.remote.credentials
+      .describe([ref])
       .then(function (response) {
-        if (!response || !response.result || !response.result.ok) return;
+        if (!response || response.ok !== true) return;
         if (ref !== refOf(self.scope.getSnapshot())) return;
-        var view = response.result.value.credentials[ref];
+        var view = response.value !== undefined ? response.value[ref] : undefined;
         var next = {
           ref: ref,
-          configured: view && view.configured === true,
-          writable: !view || view.writable !== false
+          configured: view !== undefined && view.configured === true,
+          writable: view === undefined || view.writable !== false
         };
         if (next.configured === self.credential.configured && next.writable === self.credential.writable) return;
         self.credential = next;
@@ -244,8 +244,8 @@
 
   QueritCardController.prototype.writeKey = function (value) {
     var self = this;
-    return this.api.credentials
-      .set({ ref: refOf(this.scope.getSnapshot()), value: value })
+    return this.ctx.remote.credentials
+      .set(refOf(this.scope.getSnapshot()), value)
       .then(function () {
         return self.readCredential();
       })
@@ -502,8 +502,8 @@
     );
   }
 
-  /** Required services (cordis fiber inject). */
-  var inject = ['slots', 'connection', 'settingsScope', 'remote', 'locale'];
+  /** Required services (cordis fiber inject); `remote.credentials` gates the card on the credentials namespace. */
+  var inject = ['slots', 'locale', 'remote', 'remote.credentials', 'settingsScope'];
 
   /**
    * Mount the Querit settings card into the plugins configuration tab.
@@ -513,9 +513,7 @@
     var slots = ctx.get('slots');
     var scopeService = ctx.get('settingsScope');
     var locale = ctx.get('locale');
-    var api = ctx.get('connection');
-    if (slots === undefined || scopeService === undefined || locale === undefined || api === undefined) return;
-    api = api.api;
+    if (slots === undefined || scopeService === undefined || locale === undefined) return;
     // Register the card dictionaries, then bind our own translator. The slot
     // framework may also deliver a `t` seat from the entry's `locale` option,
     // but binding here guarantees text resolves even if that seat is not yet
@@ -526,11 +524,11 @@
     }, 'dsh-querit: card dictionaries');
     var t = locale.bind(NS);
     var scope = scopeService.bind({ namespace: NAMESPACE });
-    var controller = new QueritCardController(scope, api);
+    var controller = new QueritCardController(scope, ctx);
     var remote = ctx.get('remote');
     if (remote !== undefined) {
       ctx.effect(function () {
-        return remote.$on('credentials/updated', function (ref) {
+        return remote.$on('credentials/reference-updated', function (ref) {
           controller.refreshCredential(ref);
         });
       }, 'dsh-querit: credential invalidations');

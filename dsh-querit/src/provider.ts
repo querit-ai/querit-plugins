@@ -19,8 +19,8 @@ import {
   type QueritSearchResponse,
 } from "./client.js";
 
-/** Stable id both providers register under. */
-export const QUERIT_PROVIDER_ID = "querit";
+/** Stable id both providers register under, mirroring the native `web-search-deepseek` row naming. */
+export const QUERIT_PROVIDER_ID = "web-search-querit";
 
 export const COUNTRY_VALUES = [
   "argentina",

@@ -4,14 +4,16 @@
  * `POST /v1/contents`) with a Bearer key resolved per operation from the
  * launching environment, then optional `ctx.credentials`, then literal config.
  * The agent preset registers model-facing `web_search`; this package does not.
- * By default, it reuses the official `applyWebFetchTool` helper to register
- * `web_fetch`, and both tools route through the seam.
+ * Both model-facing web tools route through the seam, so once it selects Querit
+ * neither needs a registration here; `fetch: true` opts into registering
+ * `web_fetch` via the official `applyWebFetchTool` helper for compositions
+ * where no `tool-web` row provides it.
  * @module dsh-querit
  */
 import type { Context } from "@deepseek-ai/cordis";
 import z from "@deepseek-ai/schemastery";
 import { credentialRef, type CredentialRef } from "@deepseek-ai/dsh-credentials";
-import { installSettingsSection, settingsNamespace } from "@deepseek-ai/dsh-settings";
+import type { SettingsNamespace } from "@deepseek-ai/dsh-settings";
 import { launchEnvironmentOf } from "@deepseek-ai/dsh-launch-environment";
 import {
   DEFAULT_FETCH_MAX_OUTPUT_CHARS,
@@ -84,8 +86,10 @@ export interface Config {
   fetchMaxChars?: number;
   /**
    * Register the model-facing `web_fetch` tool (via `dsh-tool-web`'s
-   * `applyWebFetchTool`). Defaults to true; set false when another row
-   * already registers `web_fetch` in the same scope.
+   * `applyWebFetchTool`). Defaults to false since dsh 0.1.2: the base and
+   * agent-preset `tool-web` rows register `web_fetch` themselves (both routing
+   * through `ctx.web`, hence Querit); enable only for compositions where no
+   * other row provides the tool.
    */
   fetch?: boolean;
   /** Cooperative tool-call timeout budget (ms) for `web_fetch`. Defaults to 30000. */
@@ -110,13 +114,13 @@ export const Config = z.object({
   fetchFormat: z.union([z.const("markdown"), z.const("text"), z.const("html")]).default("markdown"),
   fetchCrawlTimeout: z.number().step(1).min(1).max(60).default(10),
   fetchMaxChars: z.number().step(1).min(256).default(8_000),
-  fetch: z.boolean().default(true),
+  fetch: z.boolean().default(false),
   fetchTimeoutMs: z.number().step(1).min(1_000).default(DEFAULT_WEB_TOOL_TIMEOUT_MS),
   fetchMaxOutputChars: z.number().step(1).min(256).default(DEFAULT_FETCH_MAX_OUTPUT_CHARS),
 }) as z<Config>;
 
 /** Settings namespace carrying this provider's endpoint, key reference, and search defaults. */
-export const WEB_SEARCH_QUERIT_SETTINGS_NAMESPACE = settingsNamespace("web-search-querit");
+export const WEB_SEARCH_QUERIT_SETTINGS_NAMESPACE = "web-search-querit" as SettingsNamespace;
 
 /**
  * Project one resolved section into the options both providers serve their
@@ -152,21 +156,26 @@ export function resolveOptions(ctx: Context, config: Config): QueritProviderOpti
 /** Register both Querit providers with `ctx.web`, the `web_fetch` tool, and the first-load key check. */
 export async function apply(ctx: Context, config: Config): Promise<void> {
   let current = () => config;
-  installSettingsSection(ctx, WEB_SEARCH_QUERIT_SETTINGS_NAMESPACE, Config, config, {
-    setSource: (source) => {
-      current = source;
-    },
-    onChange: () => {},
-    validate: (value) => validateSection(value),
+  // Optional settings service: absent, the plugin keeps running on its entry
+  // config exactly as composed; present, the row becomes the namespace's base
+  // layer and user edits reach the next operation through `current`.
+  ctx.inject(["settings"], (settingsCtx) => {
+    settingsCtx.settings.installSection(ctx, WEB_SEARCH_QUERIT_SETTINGS_NAMESPACE, Config, config, {
+      setSource: (source) => {
+        current = source;
+      },
+      onChange: () => {},
+      validate: (value) => validateSection(value),
+    });
   });
   ctx.web.registerSearchProvider(new QueritSearchProvider(() => resolveOptions(ctx, current())));
   ctx.web.registerFetchProvider(new QueritFetchProvider(() => resolveOptions(ctx, current())));
 
-  // The model-facing web_fetch tool. In this deployment's web app the host
-  // `tool-web` row is disabled and the shipped presets keep `fetch: false`, so
-  // this package owns the one global registration; `fetch: false` opts out when
-  // a preset already registers it.
-  if (config.fetch !== false) {
+  // The model-facing web_fetch tool. Since dsh 0.1.2 the base composition and
+  // agent presets register `web_fetch` through their own `tool-web` rows (both
+  // web tools route through `ctx.web`, hence Querit), so this opt-in covers
+  // only compositions where no other row provides the tool.
+  if (config.fetch === true) {
     applyWebFetchTool(
       ctx,
       config.fetchTimeoutMs ?? DEFAULT_WEB_TOOL_TIMEOUT_MS,

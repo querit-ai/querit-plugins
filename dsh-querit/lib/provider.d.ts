@@ -9,8 +9,8 @@
 import type { WebFetchProvider, WebFetchResult, WebSearchProvider, WebSearchResult } from "@deepseek-ai/dsh-web";
 import type { CredentialRef } from "@deepseek-ai/dsh-credentials";
 import { type QueritClientOptions, type QueritContentsRequest, type QueritContentsResponse, type QueritSearchRequest, type QueritSearchResponse } from "./client.js";
-/** Stable id both providers register under. */
-export declare const QUERIT_PROVIDER_ID = "querit";
+/** Stable id both providers register under, mirroring the native `web-search-deepseek` row naming. */
+export declare const QUERIT_PROVIDER_ID = "web-search-querit";
 export declare const COUNTRY_VALUES: readonly ["argentina", "australia", "brazil", "canada", "colombia", "france", "germany", "india", "indonesia", "japan", "mexico", "nigeria", "philippines", "south korea", "spain", "united kingdom", "united states"];
 export declare const LANGUAGE_VALUES: readonly ["english", "japanese", "korean", "german", "french", "spanish", "portuguese"];
 /** `dN`/`wN`/`mN`/`yN` (N ≥ 1) or an inclusive `YYYY-MM-DDtoYYYY-MM-DD` range. */
@@ -64,7 +64,7 @@ export declare function normalizeDomains(values: readonly string[] | undefined):
 export declare function normalizeHostname(value: string): string | undefined;
 export declare class QueritSearchProvider implements WebSearchProvider {
     private readonly resolveOptions;
-    readonly id = "querit";
+    readonly id = "web-search-querit";
     /**
      * @param resolveOptions - options for the NEXT operation, snapshotted once
      * at each operation's entry so one search never mixes two settings sections.
@@ -79,7 +79,7 @@ export declare class QueritSearchProvider implements WebSearchProvider {
 }
 export declare class QueritFetchProvider implements WebFetchProvider {
     private readonly resolveOptions;
-    readonly id = "querit";
+    readonly id = "web-search-querit";
     constructor(resolveOptions: () => QueritProviderOptions);
     available(): boolean;
     fetch(request: {

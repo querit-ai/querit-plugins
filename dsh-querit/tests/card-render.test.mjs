@@ -102,3 +102,130 @@ describe('QueritCard rendering (built bundle)', () => {
     expect(saveTag(render(snapshot({ dirty: true, invalid: false })))).not.toContain('disabled');
   });
 });
+
+/**
+ * Wiring tests for the browser half: `apply` must mount through the client
+ * seams dsh 0.1.2 provides (`remote.credentials`, dotted fiber inject), and
+ * the controller must unwrap the new describe/set response shapes.
+ */
+
+/** Let promise chains inside the vm bundle settle before asserting. */
+function flush() {
+  return new Promise((resolve) => setImmediate(resolve));
+}
+
+/** A ready, writable settings scope over an in-memory section. */
+function scopeStub(section = { apiKeyEnv: 'QUERIT_API_KEY' }) {
+  let snapshot = {
+    status: 'ready',
+    value: section,
+    base: {},
+    user: {},
+    revision: 1,
+    writable: true,
+    mode: 'host',
+  };
+  const listeners = new Set();
+  const notify = () => listeners.forEach((fn) => fn());
+  return {
+    getSnapshot: () => snapshot,
+    subscribe(fn) {
+      listeners.add(fn);
+      return () => listeners.delete(fn);
+    },
+    async set(field, value) {
+      snapshot = { ...snapshot, value: { ...snapshot.value, [field]: value } };
+      notify();
+    },
+    async unset(field) {
+      const value = { ...snapshot.value };
+      delete value[field];
+      snapshot = { ...snapshot, value };
+      notify();
+    },
+  };
+}
+
+/** A `remote` service recording every credentials call it serves. */
+function remoteStub() {
+  const calls = { describe: [], set: [], events: {} };
+  return {
+    calls,
+    remote: {
+      $on(event, handler) {
+        calls.events[event] = handler;
+        return () => {};
+      },
+      credentials: {
+        describe(refs) {
+          calls.describe.push(refs);
+          return Promise.resolve({
+            ok: true,
+            value: { QUERIT_API_KEY: { configured: true, writable: false } },
+          });
+        },
+        set(ref, value) {
+          calls.set.push([ref, value]);
+          return Promise.resolve();
+        },
+      },
+    },
+  };
+}
+
+describe('browser apply wiring (built bundle)', () => {
+  it('declares the 0.1.2 client services and mounts the card slot', async () => {
+    const { apply, inject } = loadBundle();
+    expect(inject).toEqual(['slots', 'locale', 'remote', 'remote.credentials', 'settingsScope']);
+
+    const { calls, remote } = remoteStub();
+    const injected = [];
+    const services = {
+      slots: {
+        inject(name, register) {
+          injected.push([name, register()]);
+        },
+        register(options) {
+          return options;
+        },
+      },
+      locale: {
+        register: () => () => {},
+        bind: () => (key) => key,
+      },
+      settingsScope: { bind: () => scopeStub() },
+      remote,
+    };
+    const ctx = {
+      get: (name) => services[name],
+      remote,
+      effect(fn) {
+        fn();
+        return () => {};
+      },
+    };
+
+    apply(ctx);
+    await flush();
+
+    expect(injected).toHaveLength(1);
+    const [slotName, registration] = injected[0];
+    expect(slotName).toBe('settings.plugin.item');
+    expect(registration.key).toBe('web-search-querit');
+    expect(typeof calls.events['credentials/reference-updated']).toBe('function');
+    expect(calls.describe).toEqual([['QUERIT_API_KEY']]);
+  });
+
+  it('reads and writes the key through remote.credentials shapes', async () => {
+    const { QueritCardController } = loadBundle();
+    const { calls, remote } = remoteStub();
+    const controller = new QueritCardController(scopeStub(), { remote });
+
+    await flush();
+    expect(calls.describe).toEqual([['QUERIT_API_KEY']]);
+    expect(controller.credential).toEqual({ ref: 'QUERIT_API_KEY', configured: true, writable: false });
+
+    await controller.writeKey('sk-new');
+    expect(calls.set).toEqual([['QUERIT_API_KEY', 'sk-new']]);
+  });
+});

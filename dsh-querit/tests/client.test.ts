@@ -38,6 +38,7 @@ describe("QueritClient", () => {
     expect(init.method).toBe("POST");
     expect(new Headers(init.headers).get("authorization")).toBe(`Bearer ${TEST_KEY}`);
     expect(new Headers(init.headers).get("content-type")).toBe("application/json");
+    expect(new Headers(init.headers).get("user-agent")).toMatch(/^dsh-querit\//);
     expect(JSON.parse(String(init.body))).toEqual({ query: "test query", count: 5 });
   });
 

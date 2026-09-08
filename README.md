@@ -62,6 +62,8 @@ A provider package for the DeepSeek Harness `ctx.web` capability seam. It does n
 dsh plugin --profile web add dsh-querit
 ```
 
+Requires dsh 0.1.2+ — v1.1.0 targets the 0.1.2 host seams (`ctx.settings` service, `remote.credentials` client namespace). On older dsh hosts pin `dsh-querit@1.0.6`.
+
 Then wire it in the profile's `cordis.patch.yml`:
 
 ```yaml
@@ -72,8 +74,8 @@ Then wire it in the profile's `cordis.patch.yml`:
         apiKeyEnv: QUERIT_API_KEY
 - id: web
   config:
-    searchProvider: querit
-    fetchProvider: querit
+    searchProvider: web-search-querit
+    fetchProvider: web-search-querit
 ```
 
 **API key** — resolved per operation in priority order:

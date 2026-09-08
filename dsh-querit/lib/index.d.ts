@@ -4,13 +4,16 @@
  * `POST /v1/contents`) with a Bearer key resolved per operation from the
  * launching environment, then optional `ctx.credentials`, then literal config.
  * The agent preset registers model-facing `web_search`; this package does not.
- * By default, it reuses the official `applyWebFetchTool` helper to register
- * `web_fetch`, and both tools route through the seam.
+ * Both model-facing web tools route through the seam, so once it selects Querit
+ * neither needs a registration here; `fetch: true` opts into registering
+ * `web_fetch` via the official `applyWebFetchTool` helper for compositions
+ * where no `tool-web` row provides it.
  * @module dsh-querit
  */
 import type { Context } from "@deepseek-ai/cordis";
 import z from "@deepseek-ai/schemastery";
 import { type CredentialRef } from "@deepseek-ai/dsh-credentials";
+import type { SettingsNamespace } from "@deepseek-ai/dsh-settings";
 import { type QueritProviderOptions } from "./provider.js";
 export { COUNTRY_VALUES, LANGUAGE_VALUES, QUERIT_PROVIDER_ID, TIME_RANGE_PATTERN, QueritFetchProvider, QueritSearchProvider, } from "./provider.js";
 export type { QueritClientLike, QueritProviderOptions } from "./provider.js";
@@ -56,8 +59,10 @@ export interface Config {
     fetchMaxChars?: number;
     /**
      * Register the model-facing `web_fetch` tool (via `dsh-tool-web`'s
-     * `applyWebFetchTool`). Defaults to true; set false when another row
-     * already registers `web_fetch` in the same scope.
+     * `applyWebFetchTool`). Defaults to false since dsh 0.1.2: the base and
+     * agent-preset `tool-web` rows register `web_fetch` themselves (both routing
+     * through `ctx.web`, hence Querit); enable only for compositions where no
+     * other row provides the tool.
      */
     fetch?: boolean;
     /** Cooperative tool-call timeout budget (ms) for `web_fetch`. Defaults to 30000. */
@@ -67,7 +72,7 @@ export interface Config {
 }
 export declare const Config: z<Config>;
 /** Settings namespace carrying this provider's endpoint, key reference, and search defaults. */
-export declare const WEB_SEARCH_QUERIT_SETTINGS_NAMESPACE: import("@deepseek-ai/dsh-settings").SettingsNamespace;
+export declare const WEB_SEARCH_QUERIT_SETTINGS_NAMESPACE: SettingsNamespace;
 /**
  * Project one resolved section into the options both providers serve their
  * next operation with. Environment fallbacks stay here rather than in the

@@ -3,6 +3,21 @@
 Recent updates across the repository, newest first. Full history for each
 package is its git log.
 
+## 2026-09-08
+
+- **dsh-querit 1.1.0** — migrated to the dsh 0.1.2 host seams: the settings
+  namespace now registers through `ctx.settings.installSection` (the
+  `installSettingsSection`/`settingsNamespace` helpers were removed upstream),
+  and the settings card reads and writes the API key via `remote.credentials`
+  with the new describe/set shapes and the `credentials/reference-updated`
+  event. The provider id changed `querit` → `web-search-querit` (matching the
+  native `web-search-deepseek` naming; seam configs now read
+  `searchProvider: web-search-querit`), and `fetch` now defaults to `false`
+  because the 0.1.2 base composition and agent presets register `web_fetch`
+  themselves through `tool-web` (both web tools route through the seam, hence
+  Querit). Peer ranges bumped to `^0.1.2-rc.1`; on older dsh hosts pin
+  `dsh-querit@1.0.6`.
+
 ## 2026-09-04
 
 - **pi-querit 1.1.2** — load the extension from the package root (`index.ts`)

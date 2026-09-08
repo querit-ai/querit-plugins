@@ -15,8 +15,8 @@
 
 - id: web
   config:
-    searchProvider: querit
-    fetchProvider: querit
+    searchProvider: web-search-querit
+    fetchProvider: web-search-querit
 
 # This package IS the search backend: stop mounting the DeepSeek provider row.
 # Override with `- id: web-search-deepseek / disabled: false` in a later layer

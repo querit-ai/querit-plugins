@@ -6,6 +6,8 @@ Querit-backed search and fetch providers for the DeepSeek Harness [web capabilit
 
 Sign up on [Querit.ai](https://www.querit.ai) to get an API key with **1,000 free API calls per month** — no credit card required.
 
+Since v1.1.0 the package targets **dsh 0.1.2+**: the host half registers its settings namespace through the `ctx.settings` service (`installSection`), and the settings card reads and writes the API key through the browser `remote.credentials` namespace. On older dsh hosts (0.1.0–0.1.1) install `dsh-querit@1.0.6` instead.
+
 ## Quick start
 
 1. Install the package (see **Install and update** below). Since v1.0.3 the package ships as a *profile bundle*: `dsh plugin add` wires the provider row and the seam routing automatically — no `cordis.patch.yml` edits needed (see **Wire it up** for what it applies and how to override). Since v1.0.4 the bundle also disables the shipped DeepSeek search provider row, and removing the package restores it.
@@ -20,7 +22,7 @@ If the plugin loads without any resolvable key, the host log prints a one-time w
 
 Since v1.0.4 the package also ships a browser half with a settings card: **Settings → Plugins → Plugin configuration** lists a "Querit web search" card that edits the `web-search-querit` namespace (credential reference, result count, time range, languages, countries, domain lists, content excerpts, fetch format) and can write the API key straight into the credentials domain. Its writes go through the same settings transport as `$DSH_HOME/settings.yaml` (see **Config**). Since v1.0.6 the card chrome (background, padding, font size, chevron toggle, button styles) matches the official plugin cards shipped by `@deepseek-ai/dsh-client-ui-settings-plugins`, so the entry sits flush with "Terminal", "Agent loop", and the DeepSeek "Web search" row. All colors and borders are sourced from the theme's alias tokens (`--dsw-alias-bg-layer-3`, `--dsw-alias-label-primary`, etc.), so the card follows the active light or dark palette without any package-local override.
 
-This is an **implementation** package: it registers one search provider and one fetch provider into `ctx.web`. Per operation, it resolves the API key from the launching environment first, then the optional `ctx.credentials` seam, then literal config. It does not register the model-facing `web_search` tool (the agent preset does); by default, it reuses [`@deepseek-ai/dsh-tool-web`](https://www.npmjs.com/package/@deepseek-ai/dsh-tool-web)'s `applyWebFetchTool` to register `web_fetch`. That last step exists because in the web app the host `tool-web` row is disabled and the shipped presets keep `fetch: false` — this package is the one place that turns page retrieval on. Both providers share the stable id `querit`.
+This is an **implementation** package: it registers one search provider and one fetch provider into `ctx.web`. Per operation, it resolves the API key from the launching environment first, then the optional `ctx.credentials` seam, then literal config. It registers no model-facing tool itself: since dsh 0.1.2 the base composition and agent presets register both `web_search` and `web_fetch` through their `tool-web` rows, and both tools execute through `ctx.web` — so once the seam selects Querit, both tools are Querit-backed. (`fetch: true` opts into registering `web_fetch` via [`@deepseek-ai/dsh-tool-web`](https://www.npmjs.com/package/@deepseek-ai/dsh-tool-web)'s `applyWebFetchTool` for compositions that provide no `tool-web` row.) Both providers share the stable id `web-search-querit`, mirroring the native `web-search-deepseek` naming.
 
 ## Install and update
 
@@ -71,8 +73,8 @@ Since v1.0.3 the package ships as a profile bundle whose patch layer applies all
 # Route the seam's search and fetch through Querit.
 - id: web
   config:
-    searchProvider: querit
-    fetchProvider: querit
+    searchProvider: web-search-querit
+    fetchProvider: web-search-querit
 
 # This package IS the search backend: stop mounting the DeepSeek provider row.
 # Re-enable with `disabled: false` in a later layer if you need it back.
@@ -105,7 +107,7 @@ If a preset ever registers `web_fetch` itself (its `tool-web` row with `fetch: t
 | `fetchFormat` | `markdown` | Format requested from `/v1/contents` for fetch calls: `markdown`, `text`, or `html`. HTML bodies are labeled `kind: 'html'` so `dsh-tool-web` converts them to markdown. |
 | `fetchCrawlTimeout` | `10` | Per-page crawl timeout in seconds (1–60). |
 | `fetchMaxChars` | `8000` | Cap applied to one fetched page's decoded body, in chars; a cut body sets `truncated`. |
-| `fetch` | `true` | Register the model-facing `web_fetch` tool (reused from `@deepseek-ai/dsh-tool-web`). Set `false` when another row already registers `web_fetch`. |
+| `fetch` | `false` | Opt in to registering the model-facing `web_fetch` tool (reused from `@deepseek-ai/dsh-tool-web`). Since dsh 0.1.2 the base and agent-preset `tool-web` rows register `web_fetch` themselves and route through the seam, so leave off unless no other row provides the tool. |
 | `fetchTimeoutMs` | `30000` | Cooperative tool-call timeout budget (ms) attached to `web_fetch`. |
 | `fetchMaxOutputChars` | `200000` | Cap on one `web_fetch` rendered output, in chars. |
 

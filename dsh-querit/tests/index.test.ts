@@ -19,7 +19,10 @@ function fakeContext(overrides: Record<string, unknown> = {}): Context {
     get: (name: string) => services.get(name),
     effect: vi.fn(() => () => {}),
     on: vi.fn(() => () => {}),
-    inject: vi.fn(() => () => {}),
+    inject: vi.fn((deps: string[], callback: (ctx: Context) => void) => {
+      if (deps.every((dep) => services.has(dep))) callback(ctx as unknown as Context);
+      return () => {};
+    }),
     fiber: { state: 0 },
     logger,
     ...overrides,
@@ -44,9 +47,9 @@ describe("Config schema", () => {
     expect(Config({ apiKey: "sk-literal" }).apiKey).toBe("sk-literal");
   });
 
-  it("defaults the fetch tool registration", () => {
+  it("defaults the fetch tool registration off (presets own web_fetch)", () => {
     const resolved = Config({});
-    expect(resolved.fetch).toBe(true);
+    expect(resolved.fetch).toBe(false);
     expect(resolved.fetchTimeoutMs).toBe(30_000);
     expect(resolved.fetchMaxOutputChars).toBe(200_000);
   });
@@ -213,11 +216,12 @@ describe("apply", () => {
         sections.push(section.name);
         return () => {};
       },
+      getSectionOrder: (slot: string) => slot.length,
     };
     return { registered, registeredTools, sections, web, tools, systemPrompt };
   }
 
-  it("registers search and fetch providers under the querit id plus the web_fetch tool", async () => {
+  it("registers search and fetch providers under the web-search-querit id, no web_fetch tool by default", async () => {
     const { registered, registeredTools, sections, web, tools, systemPrompt } = fakeWebRegistries();
     const ctx = fakeContext({ web, tools, systemPrompt });
 
@@ -228,17 +232,19 @@ describe("apply", () => {
       ["search", QUERIT_PROVIDER_ID],
       ["fetch", QUERIT_PROVIDER_ID],
     ]);
-    expect(registeredTools).toEqual(["web_fetch"]);
-    expect(sections).toEqual(["tool:web_fetch"]);
+    expect(QUERIT_PROVIDER_ID).toBe("web-search-querit");
+    expect(registeredTools).toEqual([]);
+    expect(sections).toEqual([]);
   });
 
-  it("skips the web_fetch tool when fetch is false", async () => {
-    const { registeredTools, web, tools, systemPrompt } = fakeWebRegistries();
+  it("registers the web_fetch tool when fetch is true", async () => {
+    const { registeredTools, sections, web, tools, systemPrompt } = fakeWebRegistries();
     const ctx = fakeContext({ web, tools, systemPrompt });
 
-    await apply(ctx, Config({ fetch: false }));
+    await apply(ctx, Config({ fetch: true }));
 
-    expect(registeredTools).toEqual([]);
+    expect(registeredTools).toEqual(["web_fetch"]);
+    expect(sections).toEqual(["tool:web_fetch"]);
   });
 
   it("warns on first load when no API key is configured", async () => {
@@ -287,6 +293,37 @@ describe("apply", () => {
 
     const warn = (ctx as unknown as { logger: { warn: ReturnType<typeof vi.fn> } }).logger.warn;
     expect(warn).not.toHaveBeenCalled();
+  });
+
+  it("installs the settings section through the settings service when present", async () => {
+    const { web, tools, systemPrompt } = fakeWebRegistries();
+    const installSection = vi.fn();
+    const ctx = fakeContext({ web, tools, systemPrompt, settings: { installSection } });
+
+    await apply(ctx, Config({ count: 8 }));
+
+    expect(installSection).toHaveBeenCalledTimes(1);
+    const [owner, ns, , entry, hooks] = installSection.mock.calls[0] as [
+      Context,
+      string,
+      unknown,
+      { count?: number },
+      { setSource: (source: () => unknown) => void; validate: (value: unknown) => void },
+    ];
+    expect(owner).toBe(ctx);
+    expect(ns).toBe("web-search-querit");
+    expect(entry.count).toBe(8);
+    expect(() => hooks.validate(Config({ baseURL: "not a url" }))).toThrow("baseURL");
+    hooks.setSource(() => undefined);
+  });
+
+  it("loads without a settings service", async () => {
+    const { registered, web, tools, systemPrompt } = fakeWebRegistries();
+    const ctx = fakeContext({ web, tools, systemPrompt });
+
+    await apply(ctx, Config({}));
+
+    expect(registered).toHaveLength(2);
   });
 
   it("names the settings namespace after the plugin", () => {
