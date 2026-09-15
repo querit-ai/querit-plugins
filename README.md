@@ -8,7 +8,7 @@ Official [Querit](https://www.querit.ai) search integrations for automation and 
 | --- | --- | --- |
 | [Pi](https://github.com/earendil-works/pi) | `pi-querit` | `pi install npm:pi-querit` |
 | [DeepSeek Harness](https://www.npmjs.com/package/@deepseek-ai/cordis) | `dsh-querit` | `dsh plugin --profile web add dsh-querit` |
-| [OpenCode](https://opencode.ai) | `opencode-querit` | `"plugin": ["opencode-querit"]` |
+| [OpenCode](https://opencode.ai) | `opencode-querit` | `"plugins": ["opencode-querit"]` |
 | [Claude Code](https://code.claude.com/docs/en/plugins) | `claude-code-querit` | `/plugin marketplace add querit-ai/querit-plugins` |
 | [n8n](https://n8n.io) | `n8n-nodes-querit` | Install as an n8n community node |
 | [Oh My Pi (OMP)](https://omp.sh) | Built-in Querit provider (not a plugin) | No install; available after upstream PR merges |
@@ -90,7 +90,7 @@ See the [dsh-querit README](./dsh-querit/README.md) for the full config table.
 
 ## opencode-querit — OpenCode
 
-An OpenCode plugin that registers `web_search` and `web_fetch` as custom tools next to the built-ins. Additive: OpenCode's own `websearch`/`webfetch` stay available.
+An OpenCode v2 plugin (opencode ≥ 2.0.3) that registers **Querit as a websearch provider** — powering the built-in `websearch` tool, no `OPENCODE_ENABLE_EXA`/`OPENCODE_ENABLE_PARALLEL` flags needed — plus a `web_fetch` custom tool backed by Querit's crawler. On opencode v1 pin `opencode-querit@1.0.2`.
 
 **Install**
 
@@ -99,22 +99,22 @@ Add the plugin to `opencode.json`:
 ```json
 {
   "$schema": "https://opencode.ai/config.json",
-  "plugin": ["opencode-querit"]
+  "plugins": ["opencode-querit"]
 }
 ```
 
-Then restart OpenCode.
+Then restart OpenCode. On the first `websearch` call pick Querit in OpenCode's provider form, or pin it once with `"websearch": { "provider": "querit" }`.
 
-**API key** — resolved per tool call in priority order:
+**API key** — resolved per call in priority order:
 
 1. `QUERIT_API_KEY` environment variable (default; rename via `apiKeyEnv`), or
-2. `apiKey` in the plugin options tuple (least preferred — secrets should not live in config files):
+2. `apiKey` in the plugin options (least preferred — secrets should not live in config files):
 
 ```json
 {
   "$schema": "https://opencode.ai/config.json",
-  "plugin": [
-    ["opencode-querit", { "count": 8, "timeRange": "m3", "languages": ["english"] }]
+  "plugins": [
+    { "package": "opencode-querit", "options": { "count": 8, "timeRange": "m3", "languages": ["english"] } }
   ]
 }
 ```

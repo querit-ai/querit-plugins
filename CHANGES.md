@@ -3,6 +3,25 @@
 Recent updates across the repository, newest first. Full history for each
 package is its git log.
 
+## 2026-09-15
+
+- **opencode-querit 2.0.0** — rebuilt for OpenCode v2 (requires opencode ≥
+  2.0.3; v1 hosts pin `opencode-querit@1.0.2`). The plugin now registers
+  Querit as a websearch provider (`ctx.websearch.transform`) that powers the
+  built-in `websearch` tool directly — no `OPENCODE_ENABLE_EXA`/
+  `OPENCODE_ENABLE_PARALLEL` flags or Exa/Parallel/Tavily credentials needed —
+  instead of shadowing it with a custom `web_search` tool. On the first
+  search OpenCode offers Querit in its native provider form, or users pin it
+  via config `websearch: { "provider": "querit" }`; an explicit
+  `setDefault: true` option forces it at startup (off by default so the plugin
+  never overrides the user's persisted provider choice). `web_fetch` remains
+  a custom tool (zod schema, v2 tool registry) backed by `/v1/contents`.
+  Plugin options moved from the v1 tuple form to
+  `"plugins": [{ "package": "opencode-querit", "options": { ... } }]`.
+  `@opencode/plugin` is now a type-only optional peer dependency (zod is the
+  only runtime dependency), and the local "no API key" tests no longer pick
+  up a developer-machine `QUERIT_API_KEY`.
+
 ## 2026-09-08
 
 - **dsh-querit 1.1.1** — the settings card outline now uses the design system's

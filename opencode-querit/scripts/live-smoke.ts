@@ -1,5 +1,6 @@
 import { QueritApiError, QueritClient } from "../src/client.js";
 import { resolveConfig, resolveQueritApiKey } from "../src/config.js";
+import { createQueritFetchTool, createQueritWebSearchProvider } from "../src/index.js";
 
 const config = resolveConfig({});
 const apiKey = resolveQueritApiKey(config);
@@ -21,22 +22,30 @@ if (search.results.length === 0) {
 
 console.log(`Querit search smoke test passed: results=${search.results.length}, searchId=${search.searchId ?? "n/a"}`);
 
+// Exercise the v2 websearch provider path (built-in websearch tool routing).
+const provider = createQueritWebSearchProvider({ apiKey });
+const providerResults = await provider.execute(
+  { query: "Querit web search API" },
+  { signal: AbortSignal.timeout(config.timeoutMs) },
+);
+if (providerResults.length === 0 || !providerResults[0]?.url) {
+  throw new Error("websearch provider returned no results with a usable URL.");
+}
+console.log(`websearch provider smoke test passed: results=${providerResults.length}, first=${providerResults[0]?.url}`);
+
 const targetUrl = search.results[0]?.url;
 if (!targetUrl) throw new Error("Querit search returned a result without a usable URL.");
 
+// Exercise the v2 web_fetch tool path.
+const tool = createQueritFetchTool({ apiKey });
 try {
-  const contents = await client.contents({
-    urls: [targetUrl],
-    format: config.fetchFormat,
-    crawlTimeout: 20,
-    extrasMeta: true,
-  });
-
-  if (contents.results.length === 0) {
+  const result = await tool.execute({ url: targetUrl }, { progress: async () => undefined });
+  const metadata = result.metadata as { resultCount?: number; searchId?: string };
+  if (!metadata.resultCount) {
     throw new Error("Querit contents succeeded but returned no page content.");
   }
 
-  console.log(`Querit contents smoke test passed: results=${contents.results.length}, searchId=${contents.searchId ?? "n/a"}`);
+  console.log(`web_fetch tool smoke test passed: results=${metadata.resultCount}, searchId=${metadata.searchId ?? "n/a"}`);
 } catch (error) {
   if (error instanceof QueritApiError) {
     console.error(`Querit contents smoke test failed: status=${error.status ?? "n/a"}, searchId=${error.searchId ?? "n/a"}, message=${error.message}`);

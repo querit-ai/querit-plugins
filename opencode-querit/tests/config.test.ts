@@ -120,7 +120,7 @@ describe("resolveQueritApiKey", () => {
 
   it("returns undefined when nothing is configured", () => {
     const config = resolveConfig({}, {});
-    expect(resolveQueritApiKey(config)).toBeUndefined();
+    expect(resolveQueritApiKey(config, {})).toBeUndefined();
     expect(config.apiKeyEnv).toBe(DEFAULT_API_KEY_ENV);
   });
 });
