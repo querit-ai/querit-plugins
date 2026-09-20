@@ -6,7 +6,7 @@ Querit-backed search and fetch providers for the DeepSeek Harness [web capabilit
 
 Sign up on [Querit.ai](https://www.querit.ai) to get an API key with **1,000 free API calls per month** — no credit card required.
 
-Since v1.1.0 the package targets **dsh 0.1.2+**: the host half registers its settings namespace through the `ctx.settings` service (`installSection`), and the settings card reads and writes the API key through the browser `remote.credentials` namespace. On older dsh hosts (0.1.0–0.1.1) install `dsh-querit@1.0.6` instead.
+Since v1.1.0 the package targets **dsh 0.1.2+**: the host half registers its settings namespace through the `ctx.settings` service (`installSection`), and the settings card reads and writes the API key through the browser `remote.credentials` namespace. v1.1.2 keeps those seams and widens the peer range so npm accepts 0.1.5-rc and 0.1.6-alpha hosts (`^0.1.2-rc.1` rejected them under the prerelease-tuple rule). On older dsh hosts (0.1.0–0.1.1) install `dsh-querit@1.0.6` instead.
 
 ## Quick start
 

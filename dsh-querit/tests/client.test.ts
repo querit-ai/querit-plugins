@@ -1,3 +1,6 @@
+import { readFileSync } from "node:fs";
+import { dirname, join } from "node:path";
+import { fileURLToPath } from "node:url";
 import { describe, expect, it, vi } from "vitest";
 import {
   DEFAULT_REQUEST_TIMEOUT_MS,
@@ -5,6 +8,10 @@ import {
   QueritApiError,
   QueritClient,
 } from "../src/client.js";
+
+const PACKAGE_VERSION = (JSON.parse(
+  readFileSync(join(dirname(fileURLToPath(import.meta.url)), "../package.json"), "utf8"),
+) as { version: string }).version;
 
 const TEST_KEY = "sk-test-secret-key-123";
 
@@ -38,7 +45,7 @@ describe("QueritClient", () => {
     expect(init.method).toBe("POST");
     expect(new Headers(init.headers).get("authorization")).toBe(`Bearer ${TEST_KEY}`);
     expect(new Headers(init.headers).get("content-type")).toBe("application/json");
-    expect(new Headers(init.headers).get("user-agent")).toMatch(/^dsh-querit\//);
+    expect(new Headers(init.headers).get("user-agent")).toBe(`dsh-querit/${PACKAGE_VERSION}`);
     expect(JSON.parse(String(init.body))).toEqual({ query: "test query", count: 5 });
   });
 

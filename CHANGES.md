@@ -3,6 +3,16 @@
 Recent updates across the repository, newest first. Full history for each
 package is its git log.
 
+## 2026-09-20
+
+- **dsh-querit 1.1.2** — peer ranges now accept dsh 0.1.5-rc and 0.1.6-alpha
+  hosts. `^0.1.2-rc.1` rejected those prereleases under npm's same-tuple
+  rule, so installing on current hosts printed peer warnings even though the
+  seams this package uses (`ctx.web`, `installSection`, `remote.credentials`,
+  `settings.plugin.item`) are unchanged since 0.1.2-rc.1. The 0.1.2-rc.1
+  floor stays; on 0.1.0–0.1.1 hosts pin `dsh-querit@1.0.6`. DevDependencies
+  track `@deepseek-ai/dsh-*@0.1.5-rc.2` (npm `latest`).
+
 ## 2026-09-15
 
 - **opencode-querit 2.0.0** — rebuilt for OpenCode v2 (requires opencode ≥

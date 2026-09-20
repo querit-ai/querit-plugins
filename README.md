@@ -62,7 +62,7 @@ A provider package for the DeepSeek Harness `ctx.web` capability seam. It does n
 dsh plugin --profile web add dsh-querit
 ```
 
-Requires dsh 0.1.2+ — v1.1.0 targets the 0.1.2 host seams (`ctx.settings` service, `remote.credentials` client namespace). On older dsh hosts pin `dsh-querit@1.0.6`.
+Requires dsh 0.1.2+ — v1.1.2 keeps the 0.1.2 host seams (`ctx.settings` service, `remote.credentials` client namespace) and widens the peer range so 0.1.5-rc / 0.1.6-alpha hosts satisfy npm. On older dsh hosts pin `dsh-querit@1.0.6`.
 
 Then wire it in the profile's `cordis.patch.yml`:
 

@@ -12,7 +12,7 @@ export const QUERIT_API_BASE_URL = "https://api.querit.ai";
 export const DEFAULT_REQUEST_TIMEOUT_MS = 70_000;
 
 /** Attribution header sent on every request. Bump with the package version. */
-const USER_AGENT = "dsh-querit/1.1.0";
+const USER_AGENT = "dsh-querit/1.1.2";
 
 const SEARCH_RESPONSE_MAX_BYTES = 2 * 1024 * 1024;
 const CONTENTS_RESPONSE_MAX_BYTES = 10 * 1024 * 1024;
