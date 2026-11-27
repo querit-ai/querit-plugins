@@ -32,7 +32,8 @@ pattern from `dsh-querit-publish.yml` / `opencode-querit-publish.yml` /
 Plugins with a different distribution channel get that channel's automation
 instead of an npm workflow: `claude-code-querit` ships via the Claude Code
 marketplace catalog, `zapier-querit` via `zapier push` (Zapier review, not
-npm), and `browserbase-querit-demo` is an unpublished demo.
+npm), `magpie-querit` from its own GitHub repository (see Discoverability),
+and `browserbase-querit-demo` is an unpublished demo.
 
 ## Querit API: the official reference is the source of truth
 
@@ -49,7 +50,8 @@ when nothing chose it, so Querit applies its own defaults (above all
 `count`). Do not send a parameter the reference deprecates (`chunksPerDoc`)
 unless a configuration already sets it. Keep the clients in step: a rule
 adopted in one package belongs in all of them (pi-querit, dsh-querit,
-opencode-querit, claude-code-querit, magpie-querit, zapier-querit).
+opencode-querit, claude-code-querit, and zapier-querit here, plus
+magpie-querit in its own repository).
 
 ## Host versions: target the current host
 
@@ -61,8 +63,14 @@ hosts. Do not keep compatibility shims for superseded host versions.
 
 ## Discoverability
 
-A plugin that its host can list must stay listable. `magpie-querit` is found
-through the repository's `magpie-plugin` GitHub topic and its npm keywords
-(`magpie`, `magpie-plugin`, plus `opencode` and `opencode-plugin`, which
-magpie's npm search requires), so leave both in place when editing
-`package.json` or the repository's topics.
+`magpie-querit` is installed from GitHub, not npm, and is found through
+the `magpie-plugin` GitHub topic. magpie reads a GitHub plugin from the
+root of its repository — its docs say "Keep package.json at the
+repository's root" — and installs `github:owner/repo`, with no notion of a
+subdirectory. A plugin inside this multi-package repository can therefore
+be neither listed on magpie's Plugins page nor installed, so
+`magpie-querit` lives in its own repository,
+`querit-ai/magpie-querit`, with `package.json` at its root and that
+topic on it. Make changes to it there, and refer to it from here
+(README, CHANGES.md) rather than copying its source back into this
+repository or tagging this one `magpie-plugin`.

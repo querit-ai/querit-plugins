@@ -2,14 +2,14 @@
 
 Official [Querit](https://www.querit.ai) search integrations for automation and AI agent platforms.
 
-[Querit](https://www.querit.ai) delivers real-time, authoritative web search results and clean page content for LLM applications. Each integration in this repository connects one platform to the Querit API (`/v1/search` + `/v1/contents`) for live web search and page fetching — with cited sources, domain/region/language/time-range filters, and output that is always treated as untrusted web data. The magpie plugin covers search only, because magpie's plugin hook has no page-fetching side. The Oh My Pi entry below documents an upstream built-in provider, not a package in this repository.
+[Querit](https://www.querit.ai) delivers real-time, authoritative web search results and clean page content for LLM applications. Each integration in this repository connects one platform to the Querit API (`/v1/search` + `/v1/contents`) for live web search and page fetching — with cited sources, domain/region/language/time-range filters, and output that is always treated as untrusted web data. The magpie plugin, which lives in its own repository ([`querit-ai/magpie-querit`](https://github.com/querit-ai/magpie-querit)), covers search only, because magpie's plugin hook has no page-fetching side. The Oh My Pi entry below documents an upstream built-in provider, not a package in this repository.
 
 | Platform | Package | Install |
 | --- | --- | --- |
 | [Pi](https://github.com/earendil-works/pi) | `pi-querit` | `pi install npm:pi-querit` |
 | [DeepSeek Harness](https://www.npmjs.com/package/@deepseek-ai/cordis) | `dsh-querit` | `dsh plugin --profile web add dsh-querit` |
 | [OpenCode](https://opencode.ai) | `opencode-querit` | `"plugins": ["opencode-querit"]` |
-| [magpie](https://github.com/yetone/magpie) | `magpie-querit` | `magpie plugin add magpie-querit` |
+| [magpie](https://github.com/yetone/magpie) | [`magpie-querit`](https://github.com/querit-ai/magpie-querit) (own repository) | `magpie plugin add github:querit-ai/magpie-querit` |
 | [Claude Code](https://code.claude.com/docs/en/plugins) | `claude-code-querit` | `/plugin marketplace add querit-ai/querit-plugins` |
 | [n8n](https://n8n.io) | `n8n-nodes-querit` | Install as an n8n community node |
 | [Oh My Pi (OMP)](https://omp.sh) | Built-in Querit provider (not a plugin) | No install; available after upstream PR merges |
@@ -21,7 +21,7 @@ Two more integrations live in this repository but are not generally available ye
 | [Zapier](https://zapier.com) | `zapier-querit/` | Complete and locally validated; awaiting registration and Zapier public review |
 | [Browserbase](https://www.browserbase.com) | `browserbase-querit-demo/` | Reference demo, not a published package |
 
-How each package integration reads the API key and search defaults is covered in its own section below; the Oh My Pi section documents its upstream built-in provider. Recent updates are summarized in [CHANGES.md](./CHANGES.md).
+How each package integration reads the API key and search defaults is covered in its own section below; the magpie and Oh My Pi sections cover plugins that live outside this repository. Recent updates are summarized in [CHANGES.md](./CHANGES.md).
 
 ## Get an API key
 
@@ -116,10 +116,12 @@ See the [opencode-querit README](./opencode-querit/README.md) for the full confi
 
 A [magpie](https://github.com/yetone/magpie) plugin that adds Querit to magpie's own web search: **Settings › Models › Web search** lists a "Querit" API beside Tavily, Brave, and Exa. magpie keeps the API keys, the order of the APIs, and the request log, and every agent it serves gets results through its built-in `web_search`.
 
+It lives in its own repository, [`querit-ai/magpie-querit`](https://github.com/querit-ai/magpie-querit), not in this one: magpie reads a GitHub plugin from the root of its repository (its `package.json` has to be there) and installs it as `github:owner/repo`, so a subdirectory of a multi-package repository can be neither listed nor installed. That repository is tagged `magpie-plugin`, which puts it on magpie's **Plugins → Discover → Unofficial, on GitHub** list.
+
 **Install**
 
 ```bash
-magpie plugin add magpie-querit
+magpie plugin add github:querit-ai/magpie-querit
 magpie search add magpie-querit:querit <your-api-key>
 ```
 
@@ -129,7 +131,7 @@ Requires magpie v0.1.2887 or newer. magpie hands a plugin only the query, a resu
 magpie plugin options magpie-querit '{"timeRange": "d7"}'
 ```
 
-magpie's `web_fetch` is not pluggable, so page fetching stays with magpie. See the [magpie-querit README](./magpie-querit/README.md).
+magpie's `web_fetch` is not pluggable, so page fetching stays with magpie. See the [magpie-querit README](https://github.com/querit-ai/magpie-querit#readme).
 
 ## claude-code-querit — Claude Code
 
@@ -199,7 +201,6 @@ querit-plugins/
 ├── pi-querit/                 # Pi extension (TypeScript, no build step)
 ├── dsh-querit/                # DeepSeek Harness provider package (compiled lib/ committed)
 ├── opencode-querit/           # OpenCode plugin (compiled lib/ committed)
-├── magpie-querit/             # magpie search plugin (plain ESM, no build step)
 ├── claude-code-querit/        # Claude Code plugin (installable payload in plugin/)
 ├── n8n-nodes-querit/          # n8n community node (compiled for publishing)
 ├── zapier-querit/             # Zapier CLI integration (not published)
@@ -215,7 +216,6 @@ Work inside a package directory; the root has no scripts. After `npm ci`, run th
 | `pi-querit/` | `npm run check && npm test` |
 | `dsh-querit/` | `npm run check && npm run build && npm test` |
 | `opencode-querit/` | `npm run check && npm run build && npm test` |
-| `magpie-querit/` | `npm run check && npm test && npm run pack:check` |
 | `claude-code-querit/` | `npm run verify` |
 | `n8n-nodes-querit/` | install with `npm ci --ignore-scripts`, then `npm run check && npm run lint && npm test && npm run build` |
 | `zapier-querit/` | `npm run check && npm run build` |
@@ -228,8 +228,8 @@ claude plugin validate . --strict
 claude plugin validate ./claude-code-querit/plugin --strict
 ```
 
-Publishing is per package. `dsh-querit`, `opencode-querit`, `pi-querit`, and
-`magpie-querit` publish automatically: run `npm version <version> --no-git-tag-version` in the
+Publishing is per package. `dsh-querit`, `opencode-querit`, and
+`pi-querit` publish automatically: run `npm version <version> --no-git-tag-version` in the
 package directory (so `package.json` and `package-lock.json` stay in sync),
 commit, and push to `main`. The per-package publish workflow skips pushes
 whose version is already on npm and otherwise runs the package gates and
