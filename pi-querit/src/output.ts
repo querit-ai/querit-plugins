@@ -18,7 +18,7 @@ const createdFiles = new Set<string>();
 let fileCounter = 0;
 let exitCleanupRegistered = false;
 
-export interface LimitedOutput {
+interface LimitedOutput {
   text: string;
   truncation?: TruncationResult;
   fullOutputPath?: string;
@@ -33,7 +33,7 @@ export async function limitToolOutput(text: string, fileName: string): Promise<L
 
   const fullOutputPath = await reserveTempFile(fileName);
   await withFileMutationQueue(fullOutputPath, async () => {
-    await writeFile(fullOutputPath, text, "utf8");
+    await writeFile(fullOutputPath, text, { encoding: "utf8", mode: 0o600 });
   });
 
   const notice = `[Output truncated from ${initial.totalLines} lines (${formatSize(initial.totalBytes)}). Full output saved to: ${fullOutputPath}]`;
@@ -64,19 +64,30 @@ export async function limitToolOutput(text: string, fileName: string): Promise<L
   };
 }
 
+/**
+ * One directory per user, so it can be owner-only (mode 0700) without locking a
+ * second user out of a shared machine's temp folder. Pi limits truncated output
+ * to what this user can read, and search content is nobody else's business.
+ */
 function tempDirectoryPath(): string {
+  const suffix = typeof process.getuid === "function" ? `-${process.getuid()}` : "";
+  return join(tmpdir(), `${TEMP_DIRECTORY_NAME}${suffix}`);
+}
+
+/** The world-shared folder versions before 1.2.0 wrote to; its leftovers are still swept. */
+function legacyTempDirectoryPath(): string {
   return join(tmpdir(), TEMP_DIRECTORY_NAME);
 }
 
 /**
- * All truncated output lives in one shared temp directory so search content never
+ * All truncated output lives in this user's temp directory so search content never
  * scatters across per-call folders. File names embed the creating pid so concurrent
  * Pi instances cannot collide and stale files from dead processes can be swept.
  */
 async function reserveTempFile(fileName: string): Promise<string> {
   // mkdir on every call: the directory may have been removed externally since a
   // previous write; recursive mkdir on an existing directory is a cheap no-op.
-  await mkdir(tempDirectoryPath(), { recursive: true });
+  await mkdir(tempDirectoryPath(), { recursive: true, mode: 0o700 });
   const dot = fileName.lastIndexOf(".");
   const base = dot === -1 ? fileName : fileName.slice(0, dot);
   const extension = dot === -1 ? "" : fileName.slice(dot);
@@ -85,7 +96,7 @@ async function reserveTempFile(fileName: string): Promise<string> {
   return path;
 }
 
-/** Deletes only the files this process created; the shared folder is never removed. */
+/** Deletes only the files this process created; the temp folder itself is never removed. */
 export async function cleanupTempFiles(): Promise<void> {
   const paths = [...createdFiles];
   createdFiles.clear();
@@ -110,16 +121,20 @@ export function registerProcessExitCleanup(): void {
 
 /** Removes leftovers from previous runs whose process no longer exists. */
 export async function sweepStaleTempFiles(): Promise<void> {
+  await Promise.all([tempDirectoryPath(), legacyTempDirectoryPath()].map(sweepDirectory));
+}
+
+async function sweepDirectory(directory: string): Promise<void> {
   let entries: string[];
   try {
-    entries = await readdir(tempDirectoryPath());
+    entries = await readdir(directory);
   } catch {
     return;
   }
   await Promise.all(entries.map(async (entry) => {
     const match = TEMP_FILE_PATTERN.exec(entry);
     if (!match || isProcessAlive(Number(match[2]))) return;
-    await rm(join(tempDirectoryPath(), entry), { force: true }).catch(() => undefined);
+    await rm(join(directory, entry), { force: true }).catch(() => undefined);
   }));
 }
 

@@ -1,4 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
+import { LANGUAGE_VALUES } from "../src/config.js";
 import {
   maskApiKeyHint,
   promptForApiKey,
@@ -141,6 +142,37 @@ describe("search defaults prompts", () => {
       chunksPerDoc: 2,
       languages: ["english"],
     });
+  });
+
+  it("preserves the advanced defaults it does not prompt for", async () => {
+    const select = vi.fn()
+      .mockResolvedValueOnce("50")
+      .mockResolvedValueOnce("Reset to API default")
+      .mockResolvedValueOnce("Reset to API default")
+      .mockResolvedValueOnce("Skip (no domain filter)")
+      .mockResolvedValueOnce("Skip (no domain filter)");
+    // Country and language lists are typed, not chosen from a menu.
+    const custom = vi.fn()
+      .mockResolvedValueOnce("none")
+      .mockResolvedValueOnce("Russian");
+
+    const result = await promptForSearchDefaults(defaultsContext(select, custom) as any, {
+      count: 7,
+      highlights: true,
+      contentMaxChars: 2_000,
+      needMarkdown: true,
+      rank: "freshness",
+      languages: ["english"],
+    });
+    expect(result).toEqual({
+      count: 50,
+      highlights: true,
+      contentMaxChars: 2_000,
+      needMarkdown: true,
+      rank: "freshness",
+      languages: ["russian"],
+    });
+    expect(LANGUAGE_VALUES).toContain("russian");
   });
 
   it("cancels the whole flow when a prompt is dismissed", async () => {

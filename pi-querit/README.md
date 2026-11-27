@@ -105,14 +105,25 @@ These are persistent defaults applied to every `web_search` call. They are store
 
 | Option | Values | Default | Description |
 |---|---|---|---|
-| `count` | `1` – `20` | API default (`5`) | Number of results per search. Can be overridden per call via the `count` parameter. |
+| `count` | `1` – `100` | Querit's server default (left unset) | Number of results per search. Can be overridden per call via the `count` parameter. |
 | `timeRange` | `d7` · `w2` · `m3` · `y1` | *(none — all time)* | Restrict results to the past 7 days, 2 weeks, 3 months, or 1 year. |
-| `includeContent` | `yes` / `no` | `no` | Include sentence-level content excerpts in results for richer context. |
-| `chunksPerDoc` | `1` – `3` | API default (`1`) | Content chunks requested per result. This advanced option is configured by editing `querit-search.json`; it is not exposed in the setup wizard. |
+| `includeContent` | `yes` / `no` | `no` | Include sentence-level body text in results for richer context (`needContent`). |
 | `countries` | `argentina` · `australia` · `brazil` · `canada` · `colombia` · `france` · `germany` · `india` · `indonesia` · `japan` · `mexico` · `nigeria` · `philippines` · `south korea` · `spain` · `united kingdom` · `united states` | *(none — global)* | Bias results toward specific countries. Comma-separated, multi-select. |
-| `languages` | `english` · `japanese` · `korean` · `german` · `french` · `spanish` · `portuguese` | *(none — all)* | Filter results by language. Comma-separated, multi-select. |
+| `languages` | `english` · `japanese` · `korean` · `german` · `french` · `spanish` · `portuguese` · `russian` | *(none — all)* | Filter results by language. Comma-separated, multi-select. |
 | `includeDomains` | domain list | *(none — unrestricted)* | **Whitelist** — only these domains return results. |
 | `excludeDomains` | domain list | *(none)* | **Blacklist** — these domains are excluded. Ships with a built-in **Noise blockers** preset: `pinterest.com`, `facebook.com`, `instagram.com`, `tiktok.com`. |
+
+#### Advanced options
+
+These are set by editing `querit-search.json`; the setup wizard does not prompt for them.
+
+| Option | Values | Default | Description |
+|---|---|---|---|
+| `highlights` | `true` / `false` | *(off)* | Ask Querit for query-focused fragments of each page's body text. Usually the best answer to "the snippet is too short", and cheaper to read than whole pages. |
+| `contentMaxChars` | `1` – `1000000` | *(full body text)* | With `includeContent: true`, cap the body text returned per result, in Unicode code points. Ignored otherwise. |
+| `rank` | `relevance` · `freshness` | *(Querit's default ranking)* | A nudge on top of the default ranking, not a sort. Automatically dropped for `vertical: "code"` searches, which reject it. |
+| `needMarkdown` | `true` / `false` | *(off)* | Enterprise plans only: return `snippet_markdown` and `content_markdown`. Querit ignores it on other plans. |
+| `chunksPerDoc` | `1` – `3` | *(off)* | **Deprecated by Querit.** Kept so existing configurations keep working; migrate to `highlights`. Free and PAYG plans support at most `1`. |
 
 ### Configuration file example
 
@@ -121,9 +132,10 @@ These are persistent defaults applied to every `web_search` call. They are store
   "apiKey": "your-api-key",
   "search": {
     "count": 5,
-    "chunksPerDoc": 1,
     "timeRange": "m3",
-    "includeContent": false,
+    "includeContent": true,
+    "contentMaxChars": 2000,
+    "highlights": true,
     "countries": ["united states"],
     "languages": ["english"],
     "includeDomains": ["github.com"],
@@ -146,11 +158,14 @@ Required:
 
 Optional:
 
-- `count` (`1..20`) — overrides the configured default for one call (API default: `5`)
+- `count` (`1..100`) — overrides the configured default for one call
+- `vertical` — `"code"` for programming questions or `"finance"` for markets, listed companies, and macro-economics. Querit routes these to a vertical data source; a mismatched vertical loses results, so leave it out for everything else.
 
-Domains, time range, countries, languages, and content excerpts are persistent defaults configured in `/querit-setup` (stored under `search` in `querit-search.json`), not per-call parameters. Skipping the domain lists leaves search unrestricted; the include list is a whitelist (only those domains return results), the exclude list is a blacklist.
+Domains, time range, countries, languages, and content detail are persistent defaults configured in `/querit-setup` (stored under `search` in `querit-search.json`), not per-call parameters. Skipping the domain lists leaves search unrestricted; the include list is a whitelist (only those domains return results), the exclude list is a blacklist.
 
-Results include explicit title, URL, snippet, source metadata, and optional sentence excerpts. Duplicate and non-HTTP(S) result URLs are removed.
+When nothing sets `count`, the extension sends none and Querit applies its server default.
+
+Results include explicit title, URL, snippet, source metadata, optional sentence excerpts, and optional highlights. Duplicate and non-HTTP(S) result URLs are removed. When Querit reports a per-request cost, it is shown on the result line at full precision; an absent cost means unavailable, not free.
 
 ### `fetch_content`
 
@@ -161,12 +176,17 @@ Optional:
 - `format`: `markdown` (default), `text`, or `html`
 - `crawl_timeout`: `1..60` seconds (default `10`)
 - `include_metadata`: default `true`
+- `max_chars` (`1..1000000`) — keep only the beginning of each page. Markup counts, so truncated markdown or HTML can end mid-tag; use `text` for a clean prefix.
+- `highlight_query` — return only the passages relevant to this, extracted from the full page
+- `highlight_max_chars` (`100..8000`) — cap the highlighted characters per URL; Querit picks a length when omitted
 
-Both tools mark remote data as untrusted, propagate Pi cancellation, enforce response-size limits, and cap model-visible output at Pi's 50KB/2000-line limit. If formatted output is truncated, the complete output is written to a uniquely named file inside a single shared temp folder (`pi-querit` in the OS temp directory). To keep search content private, that folder never accumulates files: the files a Pi process creates are deleted when that session shuts down (with a process-exit fallback), and leftovers from crashed runs are swept the next time the extension loads.
+Both tools mark remote data as untrusted, propagate Pi cancellation, enforce response-size limits, and cap model-visible output at Pi's 50KB/2000-line limit. If formatted output is truncated, the complete output is written to a uniquely named file inside a per-user temp folder (`pi-querit-<uid>` in the OS temp directory), readable only by that user. To keep search content private, that folder never accumulates files: the files a Pi process creates are deleted when that session shuts down (with a process-exit fallback), and leftovers from crashed runs are swept the next time the extension loads.
+
+Failures carry Querit's `search_id`, which its support team uses to trace a request. HTTP 429, 500, and 503 are retried with bounded exponential backoff, honoring `Retry-After`; 400, 401, 403, and 404 are never retried.
 
 ## Development
 
-Requires Node.js 22.19 or newer.
+Requires Node.js 22.19 or newer. Type-checked and tested against Pi 1.6.1.
 
 ```bash
 npm install

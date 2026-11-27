@@ -64,6 +64,11 @@ export function sanitizeTerminalText(value: string): string {
   return output.replace(BIDI_CONTROLS, "");
 }
 
+/** An error's message, sanitized: errors that carry remote text end up in tool results and logs. */
+export function sanitizeErrorMessage(error: unknown): string {
+  return sanitizeTerminalText(error instanceof Error ? error.message : String(error));
+}
+
 function skipCsi(value: string, start: number): number {
   let index = start;
   while (index < value.length) {

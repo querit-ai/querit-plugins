@@ -1,16 +1,28 @@
-import type {
-  QueritContentsResponse,
-  QueritSearchResponse,
+import {
+  formatCost,
+  type QueritContentsResponse,
+  type QueritSearchResponse,
 } from "./client.js";
 import { sanitizeTerminalText } from "./sanitize.js";
 
 const encoder = new TextEncoder();
 const decoder = new TextDecoder();
 
+/** Header line shared by both tools: the IDs and cost that support and billing ask for. */
+function metaLine(
+  response: QueritSearchResponse | QueritContentsResponse,
+  extra: { serverTime?: string } = {},
+): string {
+  return `${extra.serverTime ? ` | Server time: ${singleLine(extra.serverTime, 128)}` : ""}`
+    + `${response.searchId ? ` | Search ID: ${singleLine(response.searchId, 128)}` : ""}`
+    // An absent cost means unavailable; only a reported one is shown.
+    + `${response.cost ? ` | Cost: ${formatCost(response.cost)}` : ""}`;
+}
+
 export function formatSearchResponse(response: QueritSearchResponse): string {
   const lines: string[] = [
     `# Querit search results for: ${singleLine(response.query, 1_000)}`,
-    `Results: ${response.results.length}${response.took ? ` | Server time: ${singleLine(response.took, 128)}` : ""}${response.searchId ? ` | Search ID: ${singleLine(response.searchId, 128)}` : ""}`,
+    `Results: ${response.results.length}${metaLine(response, { serverTime: response.took })}`,
   ];
 
   if (response.results.length === 0) {
@@ -26,13 +38,19 @@ export function formatSearchResponse(response: QueritSearchResponse): string {
       .filter((value): value is string => Boolean(value))
       .map((value) => singleLine(value, 512));
     if (sourceParts.length > 0) lines.push(`Source: ${sourceParts.join(" | ")}`);
-    if (result.snippet) lines.push(`Snippet: ${singleLine(result.snippet, 2_048)}`);
 
-    if (result.sentences.length > 0) {
-      lines.push("Content excerpts:");
-      for (const sentence of result.sentences) {
-        lines.push(`- ${truncateUtf8(sanitizeTerminalText(sentence), 4_096)}`);
-      }
+    // Markdown variants arrive only when needMarkdown was requested; prefer them when present.
+    const snippet = result.snippetMarkdown?.length ? result.snippetMarkdown.join(" ") : result.snippet;
+    if (snippet) lines.push(`Snippet: ${singleLine(snippet, 2_048)}`);
+
+    if (result.contentMarkdown) {
+      lines.push("Content (Markdown):", sanitizeTerminalText(result.contentMarkdown));
+    } else if (result.sentences.length > 0) {
+      lines.push(...bullets("Content excerpts:", result.sentences, 4_096));
+    }
+
+    if (result.highlights.length > 0) {
+      lines.push(...bullets("Highlights:", result.highlights, 4_096));
     }
   }
 
@@ -48,7 +66,8 @@ export function formatContentsResponse(
   const failedStatuses = response.statuses.filter((status) => status.status === "failed").length;
   const lines: string[] = [
     "# Querit fetched contents",
-    `Requested: ${requestedUrls.length} | Returned: ${response.results.length} | Successful: ${successfulStatuses} | Failed: ${failedStatuses}${response.searchTime === undefined ? "" : ` | Server time: ${response.searchTime}s`}${response.searchId ? ` | Search ID: ${singleLine(response.searchId, 128)}` : ""}`,
+    `Requested: ${requestedUrls.length} | Returned: ${response.results.length} | Successful: ${successfulStatuses} | Failed: ${failedStatuses}`
+      + metaLine(response, { serverTime: response.searchTime === undefined ? undefined : `${response.searchTime}s` }),
   ];
 
   const returnedKeys = new Set<string>();
@@ -59,6 +78,9 @@ export function formatContentsResponse(
     lines.push(`URL: ${truncateUtf8(sanitizeTerminalText(result.url), 4_096)}`);
     if (result.metadata?.siteName) lines.push(`Site: ${singleLine(result.metadata.siteName, 512)}`);
     if (result.metadata?.publishTime) lines.push(`Published: ${singleLine(result.metadata.publishTime, 128)}`);
+    if (result.highlights.length > 0) {
+      lines.push(...bullets("Highlights:", result.highlights, 8_192));
+    }
     lines.push(`Format: ${format}`, "", "--- BEGIN PAGE CONTENT ---");
     lines.push(result.content ? sanitizeTerminalText(result.content) : "[No content returned]");
     lines.push("--- END PAGE CONTENT ---");
@@ -98,4 +120,9 @@ export function truncateUtf8(value: string, maxBytes: number): string {
 
 function singleLine(value: string, maxBytes: number): string {
   return truncateUtf8(sanitizeTerminalText(value).replace(/\s+/g, " ").trim(), maxBytes);
+}
+
+/** A labeled list of remote text, each entry on one bullet and bounded. */
+function bullets(label: string, items: string[], maxBytes: number): string[] {
+  return [label, ...items.map((item) => `- ${truncateUtf8(sanitizeTerminalText(item), maxBytes)}`)];
 }

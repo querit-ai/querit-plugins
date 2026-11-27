@@ -1,8 +1,15 @@
 import { chmod, mkdir, readFile, rename, rm, writeFile } from "node:fs/promises";
 import { dirname, join } from "node:path";
 import { getAgentDir, withFileMutationQueue } from "@earendil-works/pi-coding-agent";
+import {
+  QUERIT_CONTENT_MAX_CHARS_LIMIT,
+  QUERIT_COUNT_LIMIT,
+  RANK_VALUES,
+  type QueritRankPreference,
+} from "./client.js";
+import { sanitizeErrorMessage } from "./sanitize.js";
 
-export const QUERIT_CONFIG_FILE = "querit-search.json";
+const QUERIT_CONFIG_FILE = "querit-search.json";
 
 export const COUNTRY_VALUES = [
   "argentina",
@@ -32,12 +39,14 @@ export const LANGUAGE_VALUES = [
   "french",
   "spanish",
   "portuguese",
+  "russian",
 ] as const;
 
 export type QueritCountry = (typeof COUNTRY_VALUES)[number];
 export type QueritLanguage = (typeof LANGUAGE_VALUES)[number];
 
 export interface QueritSearchDefaults {
+  /** Omit to let Querit apply its server default. */
   count?: number;
   includeDomains?: string[];
   excludeDomains?: string[];
@@ -45,7 +54,16 @@ export interface QueritSearchDefaults {
   countries?: QueritCountry[];
   languages?: QueritLanguage[];
   includeContent?: boolean;
+  /** Body-text budget per result, in Unicode code points. Only applies with `includeContent`. */
+  contentMaxChars?: number;
+  /** Ask for query-focused fragments instead of, or in addition to, whole body text. */
+  highlights?: boolean;
+  /** Enterprise plans only; Querit ignores it elsewhere. */
+  needMarkdown?: boolean;
+  /** Deprecated by Querit. Kept so existing configurations keep working; prefer `highlights`. */
   chunksPerDoc?: number;
+  /** A nudge on top of the default ranking. Dropped for code-vertical searches, which reject it. */
+  rank?: QueritRankPreference;
 }
 
 export interface QueritConfig {
@@ -57,7 +75,7 @@ export interface QueritConfigSettings {
   search?: QueritSearchDefaults;
 }
 
-export interface ApiKeyResolutionOptions {
+interface ApiKeyResolutionOptions {
   configPath?: string;
   env?: NodeJS.ProcessEnv;
 }
@@ -72,7 +90,7 @@ export async function loadQueritConfig(configPath = getQueritConfigPath()): Prom
     text = await readFile(configPath, "utf8");
   } catch (error) {
     if (isNodeError(error) && error.code === "ENOENT") return undefined;
-    throw new Error(`Could not read Querit configuration at ${configPath}: ${errorMessage(error)}`, {
+    throw new Error(`Could not read Querit configuration at ${configPath}: ${sanitizeErrorMessage(error)}`, {
       cause: error,
     });
   }
@@ -135,13 +153,21 @@ export async function saveQueritConfig(
   });
 }
 
-export function parseSearchDefaults(value: unknown): QueritSearchDefaults | undefined {
+function parseSearchDefaults(value: unknown): QueritSearchDefaults | undefined {
   if (!isRecord(value)) return undefined;
   const defaults: QueritSearchDefaults = {};
 
-  if (isIntegerInRange(value.count, 1, 20)) defaults.count = value.count;
+  if (isIntegerInRange(value.count, 1, QUERIT_COUNT_LIMIT)) defaults.count = value.count;
   if (isIntegerInRange(value.chunksPerDoc, 1, 3)) defaults.chunksPerDoc = value.chunksPerDoc;
   if (typeof value.includeContent === "boolean") defaults.includeContent = value.includeContent;
+  if (isIntegerInRange(value.contentMaxChars, 1, QUERIT_CONTENT_MAX_CHARS_LIMIT)) {
+    defaults.contentMaxChars = value.contentMaxChars;
+  }
+  if (typeof value.highlights === "boolean") defaults.highlights = value.highlights;
+  if (typeof value.needMarkdown === "boolean") defaults.needMarkdown = value.needMarkdown;
+  if (typeof value.rank === "string" && (RANK_VALUES as readonly string[]).includes(value.rank)) {
+    defaults.rank = value.rank as QueritRankPreference;
+  }
   if (typeof value.timeRange === "string" && value.timeRange.trim()) {
     defaults.timeRange = value.timeRange.trim().slice(0, 64);
   }
@@ -193,8 +219,4 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 
 function isNodeError(error: unknown): error is NodeJS.ErrnoException {
   return error instanceof Error && "code" in error;
-}
-
-function errorMessage(error: unknown): string {
-  return error instanceof Error ? error.message : String(error);
 }

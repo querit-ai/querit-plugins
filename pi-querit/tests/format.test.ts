@@ -17,6 +17,7 @@ describe("response formatting", () => {
         siteName: "Example",
         pageAge: "1 day ago",
         sentences: ["First excerpt"],
+        highlights: [],
       }],
     });
 
@@ -24,6 +25,42 @@ describe("response formatting", () => {
     expect(text).toContain("https://example.com/article");
     expect(text).toContain("9007199254740993123");
     expect(text).toContain("First excerpt");
+    expect(text).not.toContain("Cost:");
+  });
+
+  it("shows a reported cost at full precision, highlights, and Markdown bodies", () => {
+    const text = formatSearchResponse({
+      query: "replication lag",
+      searchId: "1",
+      took: "0.42",
+      cost: { currency: "USD", total: 0.000001 },
+      results: [{
+        title: "Example",
+        url: "https://example.com/article",
+        snippet: "plain",
+        sentences: ["plain body"],
+        highlights: ["the relevant fragment"],
+        snippetMarkdown: ["**markdown**", " snippet"],
+        contentMarkdown: "# Markdown body",
+      }, {
+        title: "Plain",
+        url: "https://example.com/plain",
+        snippet: "only a snippet",
+        sentences: [],
+        highlights: [],
+      }],
+    });
+
+    expect(text).toContain("| Cost: USD 0.000001");
+    const lines = text.split("\n");
+    expect(lines).toContain("Snippet: **markdown** snippet");
+    expect(lines).toContain("Content (Markdown):");
+    expect(lines).toContain("# Markdown body");
+    expect(lines).toContain("Highlights:");
+    expect(lines).toContain("- the relevant fragment");
+    // Without Markdown, the plain-text excerpts are what the model gets.
+    expect(text).not.toContain("- plain body");
+    expect(text).toContain("only a snippet");
   });
 
   it("formats returned and unavailable content URLs", () => {
@@ -32,6 +69,7 @@ describe("response formatting", () => {
       results: [{
         url: "https://example.com/",
         content: "# Page body",
+        highlights: ["the answer"],
         metadata: { title: "Example page" },
       }],
       statuses: [{ id: "1", status: "success" }, { id: "2", status: "failed" }],
@@ -40,6 +78,7 @@ describe("response formatting", () => {
 
     expect(text).toContain("BEGIN PAGE CONTENT");
     expect(text).toContain("# Page body");
+    expect(text).toContain("- the answer");
     expect(text).toContain("https://missing.example/");
   });
 
@@ -65,17 +104,19 @@ describe("response formatting", () => {
         url: "https://example.com/",
         snippet: "\u001b[2Jsnippet",
         sentences: ["\u009b31mexcerpt\u009b0m"],
+        highlights: ["\u009b31mfragment\u009b0m"],
       }],
     });
     const contentsText = formatContentsResponse({
       searchId: "\u001b]0;owned\u0007456",
-      results: [{ url: "https://example.com/", content: "\u001b]0;owned\u0007Body" }],
+      results: [{ url: "https://example.com/", content: "\u001b]0;owned\u0007Body", highlights: [] }],
       statuses: [],
     }, ["https://example.com/"], "markdown");
     expect(searchText).not.toMatch(/[\u001b\u0080-\u009f]/u);
     expect(searchText).toContain("Search ID: 123");
     expect(searchText).toContain("Visible red text");
     expect(searchText).toContain("snippet");
+    expect(searchText).toContain("- fragment");
     expect(contentsText).toContain("Body");
     expect(contentsText).not.toMatch(/[\u001b\u0080-\u009f]/u);
     expect(contentsText).toContain("Search ID: 456");

@@ -1,5 +1,5 @@
 import { spawn } from "node:child_process";
-import { access, constants, mkdir, readFile, rm, writeFile } from "node:fs/promises";
+import { access, constants, mkdir, readFile, rm, stat, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
@@ -9,7 +9,9 @@ import {
   sweepStaleTempFiles,
 } from "../src/output.js";
 
-const sharedDirectory = join(tmpdir(), "pi-querit");
+// One folder per user, so the test's own uid is part of the name.
+const sharedDirectory = join(tmpdir(), `pi-querit-${process.getuid?.() ?? ""}`);
+const legacyDirectory = join(tmpdir(), "pi-querit");
 
 function oversizedText(): string {
   return Array.from({ length: 3_000 }, (_, index) => `line ${index} ${"x".repeat(40)}`).join("\n");
@@ -84,5 +86,24 @@ describe("limited tool output", () => {
     expect(await pathExists(stale)).toBe(false);
     expect(await pathExists(live)).toBe(true);
     await rm(live, { force: true });
+  });
+
+  it.runIf(process.platform !== "win32")("keeps truncated output readable by its owner only", async () => {
+    await rm(sharedDirectory, { recursive: true, force: true });
+    const { fullOutputPath } = await limitToolOutput(oversizedText(), "search-results.md");
+
+    expect((await stat(sharedDirectory)).mode & 0o777).toBe(0o700);
+    expect((await stat(fullOutputPath!)).mode & 0o777).toBe(0o600);
+  });
+
+  it("sweeps stale files left in the folder shared with older versions", async () => {
+    const deadPid = await exitedPid();
+    const stale = join(legacyDirectory, `search-results-${deadPid}-1.md`);
+    await mkdir(legacyDirectory, { recursive: true });
+    await writeFile(stale, "stale", "utf8");
+
+    await sweepStaleTempFiles();
+
+    expect(await pathExists(stale)).toBe(false);
   });
 });

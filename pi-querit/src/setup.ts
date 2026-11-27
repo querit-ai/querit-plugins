@@ -15,6 +15,7 @@ import {
   type QueritLanguage,
   type QueritSearchDefaults,
 } from "./config.js";
+import { QUERIT_COUNT_LIMIT } from "./client.js";
 
 /**
  * Masks the API key during rendering by temporarily swapping the Input value
@@ -22,7 +23,7 @@ import {
  * assignment (no callbacks) and Input.render is a pure computation.
  */
 class MaskedInput extends Input {
-  override render(width: number): string[] {
+  override render(width: number) {
     const secret = this.getValue();
     this.setValue("*".repeat(secret.length));
     try {
@@ -60,7 +61,7 @@ export async function promptForApiKey(ctx: ExtensionCommandContext): Promise<str
   });
 }
 
-export type SetupMode = "replace-key" | "search-defaults";
+type SetupMode = "replace-key" | "search-defaults";
 
 export function maskApiKeyHint(apiKey: string): string {
   const trimmed = apiKey.trim();
@@ -97,13 +98,13 @@ export async function promptForSearchDefaults(
 
   const countChoice = await ctx.ui.select(
     "Default result count per search",
-    scalarOptions(current.count === undefined ? undefined : String(current.count), ["3", "5", "10", "20"]),
+    scalarOptions(current.count === undefined ? undefined : String(current.count), ["3", "5", "10", "20", "50"]),
   );
   if (countChoice === undefined) return undefined;
   if (isResetChoice(countChoice)) delete next.count;
   else if (!isKeepChoice(countChoice)) {
     const parsed = Number.parseInt(countChoice, 10);
-    if (Number.isInteger(parsed) && parsed >= 1 && parsed <= 20) next.count = parsed;
+    if (Number.isInteger(parsed) && parsed >= 1 && parsed <= QUERIT_COUNT_LIMIT) next.count = parsed;
   }
 
   const timeChoice = await ctx.ui.select(
@@ -130,19 +131,21 @@ export async function promptForSearchDefaults(
   if (isResetChoice(contentChoice)) delete next.includeContent;
   else if (!isKeepChoice(contentChoice)) next.includeContent = contentChoice.startsWith("Yes");
 
-  const countries = await promptForEnumList(ctx, {
+  const countries = await promptForList(ctx, {
     title: `Default countries filter${formatCurrentList(current.countries)}`,
     hint: `Comma-separated country names. Valid values: ${COUNTRY_VALUES.join(", ")}.`,
-    allowed: COUNTRY_VALUES,
+    invalidLabel: "Unknown values",
+    validate: (values) => values.filter((value) => !COUNTRY_VALUES.includes(value as QueritCountry)),
   });
   if (countries === undefined) return undefined;
   if (countries.cleared) delete next.countries;
   else if (countries.values !== undefined) next.countries = countries.values as QueritCountry[];
 
-  const languages = await promptForEnumList(ctx, {
+  const languages = await promptForList(ctx, {
     title: `Default languages filter${formatCurrentList(current.languages)}`,
     hint: `Comma-separated language names. Valid values: ${LANGUAGE_VALUES.join(", ")}.`,
-    allowed: LANGUAGE_VALUES,
+    invalidLabel: "Unknown values",
+    validate: (values) => values.filter((value) => !LANGUAGE_VALUES.includes(value as QueritLanguage)),
   });
   if (languages === undefined) return undefined;
   if (languages.cleared) delete next.languages;
@@ -181,9 +184,19 @@ interface ListPromptResult {
   values?: string[];
 }
 
-async function promptForEnumList(
+/**
+ * Asks for a comma-separated list. Empty keeps the current setting, "none"
+ * clears it, and anything `validate` rejects is asked for again.
+ */
+async function promptForList(
   ctx: ExtensionCommandContext,
-  options: { title: string; hint: string; allowed: readonly string[] },
+  options: {
+    title: string;
+    hint: string;
+    /** What the rejected entries are called in the error shown. */
+    invalidLabel: string;
+    validate: (values: string[]) => string[];
+  },
 ): Promise<ListPromptResult | undefined> {
   for (;;) {
     const raw = await promptForPlainText(ctx, options.title, options.hint);
@@ -191,33 +204,13 @@ async function promptForEnumList(
     const trimmed = raw.trim();
     if (trimmed === "") return { cleared: false };
     if (trimmed.toLowerCase() === "none") return { cleared: true };
-    const values = splitList(trimmed);
-    const invalid = values.filter((value) => !options.allowed.includes(value));
+    const values = [...new Set(splitList(trimmed))];
+    const invalid = options.validate(values);
     if (invalid.length > 0) {
-      ctx.ui.notify(`Unknown values: ${invalid.join(", ")}. ${options.hint}`, "error");
+      ctx.ui.notify(`${options.invalidLabel}: ${invalid.join(", ")}. ${options.hint}`, "error");
       continue;
     }
-    return { cleared: false, values: [...new Set(values)] };
-  }
-}
-
-async function promptForDomainList(
-  ctx: ExtensionCommandContext,
-  options: { title: string; hint: string },
-): Promise<ListPromptResult | undefined> {
-  for (;;) {
-    const raw = await promptForPlainText(ctx, options.title, options.hint);
-    if (raw === undefined) return undefined;
-    const trimmed = raw.trim();
-    if (trimmed === "") return { cleared: false };
-    if (trimmed.toLowerCase() === "none") return { cleared: true };
-    const values = splitList(trimmed);
-    const invalid = values.filter((value) => value.length > 253 || /\s/u.test(value) || !value.includes("."));
-    if (invalid.length > 0) {
-      ctx.ui.notify(`Invalid domains: ${invalid.join(", ")}. ${options.hint}`, "error");
-      continue;
-    }
-    return { cleared: false, values: [...new Set(values)] };
+    return { cleared: false, values };
   }
 }
 
@@ -249,8 +242,14 @@ async function promptForDomainChoice(
   if (options.preset && choice === options.preset.label) {
     return { cleared: false, values: [...options.preset.values] };
   }
-  return promptForDomainList(ctx, { title: options.customTitle, hint: options.customHint });
+  return promptForList(ctx, {
+    title: options.customTitle,
+    hint: options.customHint,
+    invalidLabel: "Invalid domains",
+    validate: (values) => values.filter((value) => value.length > 253 || /\s/u.test(value) || !value.includes(".")),
+  });
 }
+
 async function promptForPlainText(
   ctx: ExtensionCommandContext,
   title: string,
@@ -297,6 +296,7 @@ function formatCurrentList(values: string[] | undefined): string {
 function splitList(value: string): string[] {
   return value.split(",").map((entry) => entry.trim().toLowerCase()).filter((entry) => entry.length > 0);
 }
+
 class FocusableContainer implements Focusable {
   private _focused = false;
 
@@ -315,7 +315,8 @@ class FocusableContainer implements Focusable {
     this.input.focused = value;
   }
 
-  render(width: number): string[] {
+  // pi-tui 1.6 returns readonly lines; the inferred type tracks whichever version is installed.
+  render(width: number) {
     return this.container.render(width);
   }
 

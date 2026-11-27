@@ -72,8 +72,36 @@ describe("Querit configuration", () => {
       },
     });
 
-    await saveQueritConfig("test-key", path, { search: { count: 99 } });
+    await saveQueritConfig("test-key", path, { search: { count: 101 } });
     await expect(loadQueritConfig(path)).resolves.toEqual({ apiKey: "test-key" });
+  });
+
+  it("persists the newer search defaults", async () => {
+    const path = await temporaryConfigPath();
+    await saveQueritConfig("test-key", path, {
+      search: {
+        count: 100,
+        includeContent: true,
+        contentMaxChars: 2_000,
+        highlights: true,
+        needMarkdown: true,
+        rank: "freshness",
+        languages: ["english", "russian"],
+      },
+    });
+
+    await expect(loadQueritConfig(path)).resolves.toEqual({
+      apiKey: "test-key",
+      search: {
+        count: 100,
+        includeContent: true,
+        contentMaxChars: 2_000,
+        highlights: true,
+        needMarkdown: true,
+        rank: "freshness",
+        languages: ["english", "russian"],
+      },
+    });
   });
 
   it("drops invalid search default fields when loading", async () => {
@@ -81,12 +109,16 @@ describe("Querit configuration", () => {
     await writeFile(path, JSON.stringify({
       apiKey: "key",
       search: {
-        count: 99,
+        count: 101,
         chunksPerDoc: 0,
         timeRange: "  ",
         countries: ["atlantis"],
         languages: "english",
         includeDomains: ["ok.example", "bad domain", 42],
+        contentMaxChars: 0,
+        highlights: "yes",
+        needMarkdown: 1,
+        rank: "newest",
       },
     }), "utf8");
 
