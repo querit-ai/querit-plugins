@@ -1,4 +1,4 @@
-import { QueritApiError, QueritClient } from "../src/client.js";
+import { QueritApiError, QueritClient, formatCost } from "../src/client.js";
 import { resolveConfig, resolveQueritApiKey } from "../src/config.js";
 import { createQueritFetchTool, createQueritWebSearchProvider } from "../src/index.js";
 
@@ -20,7 +20,10 @@ if (search.results.length === 0) {
   throw new Error("Querit search succeeded but returned no results for the smoke-test query.");
 }
 
-console.log(`Querit search smoke test passed: results=${search.results.length}, searchId=${search.searchId ?? "n/a"}`);
+// An absent cost means Querit did not report one; it is never a zero charge.
+const costLabel = (cost: { currency: string; total: number } | undefined) => (cost ? formatCost(cost) : "unavailable");
+
+console.log(`Querit search smoke test passed: results=${search.results.length}, searchId=${search.searchId ?? "n/a"}, cost=${costLabel(search.cost)}`);
 
 // Exercise the v2 websearch provider path (built-in websearch tool routing).
 const provider = createQueritWebSearchProvider({ apiKey });
@@ -39,13 +42,17 @@ if (!targetUrl) throw new Error("Querit search returned a result without a usabl
 // Exercise the v2 web_fetch tool path.
 const tool = createQueritFetchTool({ apiKey });
 try {
-  const result = await tool.execute({ url: targetUrl }, { progress: async () => undefined });
-  const metadata = result.metadata as { resultCount?: number; searchId?: string };
+  const result = await tool.execute(
+    { url: targetUrl },
+    // What the host hands a tool: the call's abort signal and a progress reporter.
+    { signal: AbortSignal.timeout(config.timeoutMs), progress: async () => undefined },
+  );
+  const metadata = result.metadata as { resultCount?: number; searchId?: string; cost?: { currency: string; total: number } };
   if (!metadata.resultCount) {
     throw new Error("Querit contents succeeded but returned no page content.");
   }
 
-  console.log(`web_fetch tool smoke test passed: results=${metadata.resultCount}, searchId=${metadata.searchId ?? "n/a"}`);
+  console.log(`web_fetch tool smoke test passed: results=${metadata.resultCount}, searchId=${metadata.searchId ?? "n/a"}, cost=${costLabel(metadata.cost)}`);
 } catch (error) {
   if (error instanceof QueritApiError) {
     console.error(`Querit contents smoke test failed: status=${error.status ?? "n/a"}, searchId=${error.searchId ?? "n/a"}, message=${error.message}`);

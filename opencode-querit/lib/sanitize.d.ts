@@ -5,3 +5,5 @@
  * @module opencode-querit/sanitize
  */
 export declare function sanitizeUntrustedText(value: string): string;
+/** The text of a thrown value, sanitized: an error message can carry remote text such as a URL. */
+export declare function sanitizeErrorMessage(error: unknown): string;

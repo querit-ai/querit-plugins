@@ -67,6 +67,11 @@ export function sanitizeUntrustedText(value: string): string {
   return output.replace(BIDI_CONTROLS, "");
 }
 
+/** The text of a thrown value, sanitized: an error message can carry remote text such as a URL. */
+export function sanitizeErrorMessage(error: unknown): string {
+  return sanitizeUntrustedText(error instanceof Error ? error.message : String(error));
+}
+
 function skipCsi(value: string, start: number): number {
   let index = start;
   while (index < value.length) {

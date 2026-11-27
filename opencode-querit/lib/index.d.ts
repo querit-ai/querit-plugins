@@ -13,7 +13,7 @@
  * @module opencode-querit
  */
 import type { Plugin, WebSearch } from "@opencode/plugin";
-import type { Metadata, Result } from "@opencode/plugin/promise/tool";
+import type { Result } from "@opencode/plugin/promise/tool";
 import { z } from "zod";
 import { type QueritClientOptions, type QueritContentsRequest, type QueritContentsResponse, type QueritSearchRequest, type QueritSearchResponse } from "./client.js";
 import { type OpenCodeQueritOptions, type QueritConfig } from "./config.js";
@@ -34,9 +34,10 @@ export interface QueritPluginOptions extends OpenCodeQueritOptions {
     /** Client factory used by tests; defaults to `QueritClient`. */
     clientFactory?: (options: QueritClientOptions) => QueritClientLike;
 }
-/** Minimal structural stand-in for the host's tool execution context. */
-export interface QueritToolContext {
-    readonly progress: (update: Metadata) => Promise<void>;
+/** The part of the host's tool execution context the fetch tool reads. */
+interface QueritToolContext {
+    /** Aborts when the host interrupts or stops the call; reading it opts the tool into a cooperative stop. */
+    readonly signal: AbortSignal;
 }
 declare const fetchInput: z.ZodObject<{
     url: z.ZodOptional<z.ZodString>;
@@ -48,6 +49,9 @@ declare const fetchInput: z.ZodObject<{
     }>>;
     crawl_timeout: z.ZodOptional<z.ZodNumber>;
     include_metadata: z.ZodOptional<z.ZodBoolean>;
+    max_chars: z.ZodOptional<z.ZodNumber>;
+    highlight_query: z.ZodOptional<z.ZodString>;
+    highlight_max_chars: z.ZodOptional<z.ZodNumber>;
 }, z.core.$strip>;
 type FetchInput = z.infer<typeof fetchInput>;
 export interface QueritWebSearchProvider {
@@ -59,7 +63,7 @@ export interface QueritWebSearchProvider {
         readonly signal: AbortSignal;
     }) => Promise<readonly WebSearch.Result[]>;
 }
-export interface QueritFetchTool {
+interface QueritFetchTool {
     readonly name: string;
     readonly description: string;
     readonly input: typeof fetchInput;
@@ -75,8 +79,12 @@ export declare function createQueritWebSearchProvider(options?: QueritPluginOpti
 export declare function createQueritFetchTool(options?: QueritPluginOptions): QueritFetchTool;
 export declare const QueritPlugin: Plugin.Plugin;
 export default QueritPlugin;
-/** Build the /v1/search request body from config defaults. */
-export declare function buildSearchRequest(config: QueritConfig, query: string, count?: number): QueritSearchRequest;
+/**
+ * Build the /v1/search request body from the resolved config. A parameter the
+ * user did not set is omitted, so Querit's server default applies; `rank` is
+ * dropped for the code vertical, which rejects it with a 400.
+ */
+export declare function buildSearchRequest(config: QueritConfig, query: string): QueritSearchRequest;
 /**
  * Map a Querit search response to OpenCode's WebSearch.Result shape. Every
  * remote string is sanitized and capped; the total content budget is
