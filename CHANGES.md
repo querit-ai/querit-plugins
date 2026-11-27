@@ -3,6 +3,109 @@
 Recent updates across the repository, newest first. Full history for each
 package is its git log.
 
+## 2026-11-27
+
+- **magpie-querit 1.0.0** — new. Adds Querit to
+  [magpie](https://github.com/yetone/magpie)'s own web search through the
+  plugin `search` hook that magpie v0.1.2887 introduced, so "Querit" is
+  listed in **Settings › Models › Web search** beside Tavily, Brave, and Exa
+  and magpie keeps the keys, the order of the APIs, and the request log.
+  Install with `magpie plugin add magpie-querit` and give it a key with
+  `magpie search add magpie-querit:querit <key>`. magpie hands a plugin only
+  a query, a count, and a key, so the plugin's options (`timeRange`,
+  `vertical`, `highlights`) apply to every search; magpie's `web_fetch` is
+  not pluggable and stays with magpie. A key Querit refuses (401, 402, 403,
+  429) is reported the way magpie rests a key; any other failure makes
+  magpie ask its next search API.
+- **dsh-querit 2.0.0** — moved to the dsh 0.2.2-rc.5 host seams. `engines.dsh`
+  is now `>=0.2.2-rc.5 <0.3.0`, Node.js 24.9 is required as the host
+  requires it, and dsh 0.1.x hosts should pin `dsh-querit@1.1.2`. The
+  settings UI no longer has `ctx.settings.installSection` to register with:
+  it is the row's own configuration page on the `plugins.row.config` slot
+  (**Settings → Plugins → Installed → `dsh-querit` → the `web-search-querit`
+  row → Configure**), where the API key and every search default are edited
+  through `ctx.configForms` and a save reaches the next operation without a
+  restart. Every config value is a live handle that an operation reads as it
+  stands. The credentials service is now authoritative when installed, as it
+  is for the host's own providers: a row `apiKey` wins, then the credentials
+  store, and the launching environment only where no credentials service
+  runs (it used to come first). Both providers declare a title and a
+  localized description, report `ready` from the presence of a key, and give
+  each result a model-facing `summary` (highlights, then body text) apart
+  from the display `snippet`. The `./invariant` export is gone with the
+  removed `@deepseek-ai/dsh-invariants`. Querit API: `count` up to 100 and
+  left unset by default, plus `highlights`, `contentMaxChars`, `needMarkdown`,
+  `rank` (dropped for the `code` vertical, which rejects it), `vertical`,
+  `resourceTags`, and `russian`; the deprecated `chunksPerDoc` is sent only
+  when set. HTTP 429/500/503 are retried with bounded backoff honoring
+  `Retry-After`, failure messages end with `search_id`, and each operation
+  logs its `search_id`, server time, and cost.
+- **pi-querit 1.2.0** — type-checked and tested against Pi 1.6.1, and it now
+  ships the `CHANGELOG.md` Pi reads on update. `web_search` and
+  `fetch_content` declare `readOnlyHint` and `openWorldHint`, so a
+  permission extension no longer assumes the MCP defaults and asks for
+  confirmation on every search. Querit API: `web_search` takes an optional
+  `vertical` (`code`, `finance`); `fetch_content` takes `max_chars`,
+  `highlight_query`, and `highlight_max_chars`; `querit-search.json` gains
+  `highlights`, `contentMaxChars`, `rank`, and `needMarkdown`. `count` now
+  goes up to 100 and is left unset by default so Querit applies its server
+  default (the extension used to ask for 5; set `"count": 5` in
+  `/querit-setup` to keep that), and the deprecated `chunksPerDoc` is sent
+  only when set. Results carry highlights and Markdown fields when requested,
+  and the result line shows Querit's cost when it reports one. Truncated
+  output goes to a per-user temp folder (`pi-querit-<uid>`, mode `0700`,
+  files `0600`).
+- **opencode-querit 3.0.0** — follows the current OpenCode v2 and Querit APIs.
+  The host floor is OpenCode 2.0.28 (verified against 2.4.2; on an older v2
+  host pin `opencode-querit@2.0.0`, on v1 `opencode-querit@1.0.2`), the first
+  release that reports a rejected `web_fetch` call as a normal tool failure
+  instead of crashing the call, and `zod` 4.2.0 or later is required — the
+  first release whose schemas expose the JSON Schema hook OpenCode v2 uses to
+  describe a plugin tool's input. `web_fetch` now forwards OpenCode's abort
+  signal, so a stopped call cancels the request and any pending retry wait.
+  Querit API: `count` goes up to 100 and is left unset by default so Querit
+  applies its server default (the plugin used to ask for 5; set `"count": 5`
+  to keep that), the deprecated `chunksPerDoc` is sent only when set (it used
+  to go out as 1 on every request), and new options cover `highlights`,
+  `includeContent` with `contentMaxChars`, `needMarkdown`, `vertical` with
+  `resourceTags`, `rank` (dropped for the `code` vertical, which rejects it),
+  and `russian` in `languages`. Results carry highlights and Markdown fields
+  when requested, and `page_age` is read as the UTC time Querit reports it.
+  HTTP 429/500/503 are retried at most twice with jittered backoff honoring
+  `Retry-After`; the retry decision and every failure follow Querit's
+  `error_code`, which is checked even on an HTTP 200, and failure messages
+  end with `search_id`.
+- **claude-code-querit 1.1.0** — follows the current Querit API. `web_search`
+  gains `highlights`, `highlight_query`, `highlight_max_chars`, `need_content`,
+  `max_chars`, `need_markdown`, `rank`, and `vertical`; `count` now goes up to
+  100 and is omitted unless asked for, so Querit applies its server default
+  (the tool used to ask for 5), and the deprecated `chunksPerDoc` and a fixed
+  `needContent: false` are no longer sent. `fetch_content` gains `max_chars`,
+  `highlight_query`, and `highlight_max_chars`. Results carry highlights and
+  Markdown fields when requested, the header shows Querit's cost when it
+  reports one, and `page_age` is labeled as the UTC time it is. HTTP
+  429/500/503 are retried with bounded backoff honoring `Retry-After`; the
+  retry decision and every failure follow Querit's `error_code`, which is
+  checked even on an HTTP 200, and failure messages end with `search_id`.
+  The research skill's `allowed-tools` names were stale, from before the
+  plugin was renamed `querit-ai` (`mcp__plugin_querit_querit__*`), and the
+  README's `/querit:research` is `/querit-ai:research`.
+- **zapier-querit 1.1.0** — the Search action follows the current Querit API.
+  Result Count goes up to 100 and is no longer forced to 5: it is sent only
+  when a Zap sets it, so Querit applies its own default. New inputs: Custom
+  Time Range (any `dN`/`wN`/`mN`/`yN` period or a
+  `YYYY-MM-DDtoYYYY-MM-DD` range), Vertical with Resource Tags, Rank
+  Preference (rejected with the code vertical), Content Max Characters, and
+  Include Highlights with Max Highlight Characters; Languages gains Russian.
+  Unset fields and off toggles are no longer sent, and the deprecated
+  `chunksPerDoc` is sent only when set. Each result returns `highlights` and
+  Querit's reported `cost` (six decimals; empty when unavailable). 429, 500,
+  and 503 are retried at most twice with jittered backoff honoring
+  `Retry-After` up to 5 s, decided by `error_code`, which is checked even on
+  an HTTP 200; failure messages end with `search_id`, and a 429 that still
+  fails raises Zapier's own `ThrottledError`. Still unpublished: registration
+  and `zapier push` need the company Zapier account.
+
 ## 2026-09-20
 
 - **dsh-querit 1.1.2** — peer ranges now accept dsh 0.1.5-rc and 0.1.6-alpha
