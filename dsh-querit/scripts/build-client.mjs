@@ -23,12 +23,9 @@ const libDir = join(root, 'lib');
 const marker = '/* __DSH_QUERIT_FORM_MODEL__ */';
 
 const template = readFileSync(join(srcDir, 'card.js'), 'utf8');
-let model = readFileSync(join(srcDir, 'form-model.js'), 'utf8');
-
-// Strip the single-line re-export block and the per-definition `export` keyword
-// so the definitions become plain declarations inside the factory body.
-model = model.replace(/\nexport \{[^}]*\};\s*$/, '');
-model = model.replace(/^export /gm, '');
+// Drop the per-definition `export` keyword so the definitions become plain
+// declarations inside the factory body.
+const model = readFileSync(join(srcDir, 'form-model.js'), 'utf8').replace(/^export /gm, '');
 
 if (!template.includes(marker)) {
   throw new Error(`src/card.js is missing the ${marker} insertion marker`);

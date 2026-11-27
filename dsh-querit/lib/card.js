@@ -1,5 +1,5 @@
 /**
- * dsh-querit browser bundle — Querit settings card.
+ * dsh-querit browser bundle — the Querit row's configuration page.
  *
  * Built by scripts/build-client.mjs into lib/card.js (do not edit the
  * generated file). The browser loader wraps this module; the node-side unit
@@ -28,16 +28,16 @@
  *
  * This file is the SINGLE SOURCE of truth for the card's field conversions and
  * save planning. The browser bundle inlines these exact definitions (see
- * scripts/build-client.mjs); the node-side unit tests import them through the
- * exports at the bottom. Keep everything here free of DOM, React, and window
- * references so both consumers can run it.
+ * scripts/build-client.mjs); the node-side unit tests import this file
+ * directly. Keep everything here free of DOM, React, and window references so
+ * both consumers can run it.
  */
 
 /**
  * A whole-number field. An empty draft clears the field; any other draft that
  * is not a finite number blocks the save.
  * @param {string} field - field name inside the namespace section.
- * @returns {import('./client-types.js').FieldSpec} the field's conversion spec.
+ * @returns {object} the field's conversion spec: `format(value)` renders a stored value, `parse(text)` reads a draft back.
  */
 function numberField(field) {
   return {
@@ -58,7 +58,7 @@ function numberField(field) {
  * A free-text field. An empty draft clears the field, so emptying the control
  * and saving is the same gesture as resetting it.
  * @param {string} field - field name inside the namespace section.
- * @returns {import('./client-types.js').FieldSpec} the field's conversion spec.
+ * @returns {object} the field's conversion spec: `format(value)` renders a stored value, `parse(text)` reads a draft back.
  */
 function textField(field) {
   return {
@@ -75,7 +75,7 @@ function textField(field) {
  * A comma-separated list field (string[] ↔ "a, b, c"). An empty draft clears
  * the field; duplicates and blank entries are dropped.
  * @param {string} field - field name inside the namespace section.
- * @returns {import('./client-types.js').FieldSpec} the field's conversion spec.
+ * @returns {object} the field's conversion spec: `format(value)` renders a stored value, `parse(text)` reads a draft back.
  */
 function listField(field) {
   return {
@@ -100,7 +100,7 @@ function listField(field) {
 /**
  * A boolean toggle field. It always writes a value; there is no "clear".
  * @param {string} field - field name inside the namespace section.
- * @returns {import('./client-types.js').FieldSpec} the field's conversion spec.
+ * @returns {object} the field's conversion spec: `format(value)` renders a stored value, `parse(text)` reads a draft back.
  */
 function booleanField(field) {
   return {
@@ -115,7 +115,7 @@ function booleanField(field) {
  * A single-choice field over a fixed set of strings.
  * @param {string} field - field name inside the namespace section.
  * @param {readonly string[]} choices - acceptable values.
- * @returns {import('./client-types.js').FieldSpec} the field's conversion spec.
+ * @returns {object} the field's conversion spec: `format(value)` renders a stored value, `parse(text)` reads a draft back.
  */
 function enumField(field, choices) {
   return {
@@ -135,7 +135,7 @@ function enumField(field, choices) {
  * stored in the credentials domain, never in the settings document).
  * @param {string} field - field name this control stages under.
  * @param {(value: string) => Promise<boolean>} write - persist the literal.
- * @returns {import('./client-types.js').SecretSpec} the secret's spec.
+ * @returns {object} the secret's spec: the field name and its `write`.
  */
 function secretSpec(field, write) {
   return { field, write };
@@ -152,7 +152,7 @@ function secretSpec(field, write) {
  * a field overridden.
  */
 class QueritFormModel {
-  /** @param {import('./client-types.js').SettingsScope} scope - bound settings scope for the namespace. */
+  /** @param {object} scope - the namespace's config form: `getSnapshot()`, `subscribe(listener)`, `set(field, value)`, and `unset(field)`. */
   constructor(scope, specs, secrets = []) {
     this.scope = scope;
     this.specs = new Map(specs.map((spec) => [spec.field, spec]));
@@ -161,14 +161,20 @@ class QueritFormModel {
     this.listeners = new Set();
     this.saving = false;
     this.failed = false;
-    scope.subscribe(() => this.publish());
+    this.unsubscribe = scope.subscribe(() => this.publish());
+  }
+
+  /** Stop following the scope; a disposed form publishes nothing more. */
+  dispose() {
+    this.unsubscribe();
+    this.listeners.clear();
   }
 
   /**
    * Publish a projection of this form rebuilt whenever the scope or a draft
    * changes.
    * @param {() => object} project - build the card's state from the form reads.
-   * @returns {import('./client-types.js').SnapshotStore} the store the component reads.
+   * @returns {object} the store the component reads: `getSnapshot()`, `subscribe(listener)`, and `set(next)`.
    */
   bind(project) {
     const store = makeStore(project());
@@ -337,29 +343,23 @@ function makeStore(initial) {
 }
 
   var NS = 'dsh-querit';
+  /** The plugin entry id: its config form is what this page edits. */
   var NAMESPACE = 'web-search-querit';
+  /** `plugins.row.config` key: `<package name>#<row id>`, both as the bundle patch declares them. */
+  var ROW_CONFIG_KEY = NS + '#' + NAMESPACE;
   var DEFAULT_API_KEY_REF = 'QUERIT_API_KEY';
   var FETCH_FORMATS = ['markdown', 'text', 'html'];
+  var RANK_VALUES = ['relevance', 'freshness'];
+  var VERTICAL_VALUES = ['code', 'finance'];
 
-  /* Card styles: scoped classes over the theme's alias tokens. */
+  /* Page styles: scoped classes over the theme's alias tokens. */
   (function injectCardCss() {
     if (typeof document === 'undefined') return;
-    var tagId = NS + '/card.css';
+    var tagId = NS + '/page.css';
     if (document.querySelector('style[data-plugin-css="' + tagId + '"]') !== null) return;
     var css = [
-      '.qr-card{list-style:none;border:.5px solid var(--dsw-alias-border-l4);background:var(--dsw-alias-bg-layer-3);border-radius:16px;transition:border-color .16s,background .16s}',
-      '.qr-card:hover{border-color:var(--dsw-alias-label-dimmed)}',
-      '.qr-card.qr-open{background:var(--dsw-alias-bg-layer-2);border-color:var(--dsw-alias-label-dimmed)}',
-      '.qr-header{appearance:none;display:flex;align-items:center;gap:12px;width:100%;padding:14px 16px;background:0 0;border:0;border-radius:12px;cursor:pointer;color:inherit;font:inherit;text-align:left}',
-      '.qr-header:focus-visible{outline:2px solid var(--dsw-alias-brand-primary);outline-offset:-2px}',
-      '.qr-head{flex-direction:column;flex:1;min-width:0;gap:4px;display:flex}',
-      '.qr-name{color:var(--dsw-alias-label-primary);font-size:15px;font-weight:600;line-height:1.4}',
-      '.qr-desc{color:var(--dsw-alias-label-tertiary);font-size:13px;line-height:1.5}',
-      '.qr-pending{white-space:nowrap;background:var(--dsw-alias-bg-module-platform);color:var(--dsw-alias-label-secondary);border-radius:999px;flex:none;padding:1px 8px;font-size:11px;font-weight:500;line-height:17px}',
-      '.qr-chev{color:var(--dsw-alias-label-tertiary);flex:none;transition:transform .16s}',
-      '.qr-card.qr-open .qr-chev{transform:rotate(180deg)}',
-      '.qr-body{border-top:1px solid var(--dsw-alias-border-l2);margin:0 16px;padding-bottom:8px}',
-      '.qr-readonly{color:var(--dsw-alias-label-tertiary);margin:12px 0 0;font-size:12px;line-height:1.5}',
+      '.qr-page{display:flex;flex-direction:column}',
+      '.qr-readonly{color:var(--dsw-alias-label-tertiary);margin:0 0 4px;font-size:12px;line-height:1.5}',
       '.qr-field{display:flex;flex-direction:column;gap:6px;padding:12px 0}',
       '.qr-field+.qr-field{border-top:1px solid var(--dsw-alias-border-l2)}',
       '.qr-fhead{display:flex;align-items:center;gap:8px}',
@@ -394,78 +394,102 @@ function makeStore(initial) {
   })();
 
   var en = {
-    title: 'Querit web search',
-    description: 'Querit-backed search and fetch provider.',
+    summary: 'Querit web search and page fetch. Configure the API key, result count, and search filters.',
+    loading: 'Loading settings\u2026',
     readOnly: 'This deployment stores settings read-only.',
-    expand: 'Show settings',
-    collapse: 'Hide settings',
     pass: 'Password',
     save: 'Save',
     saving: 'Saving\u2026',
     discard: 'Discard',
-    unsaved: 'Unsaved',
     overridden: 'Overridden',
     reset: 'Reset to default',
+    useDefault: 'Default (not set)',
     saveFailed: 'The deployment did not accept these values; they were left for you to correct.',
-    invalidNumber: 'Enter a number, or leave blank to use the default.',
+    invalidNumber: 'Enter a whole number, or leave blank to use the default.',
     keyLabel: 'API key',
     keyHint: 'Stored outside the settings file. Leave blank to keep the current key.',
     keySet: 'A key is configured for',
-    keyUnset: 'No key is configured; search fails until one is set via the credentials file or here.',
+    keyUnset: 'No key is configured; search fails until one is set here or in the credentials store.',
     refLabel: 'Credential reference',
-    refHint: 'Environment variable / credentials-store name the provider resolves per call.',
+    refHint: 'Credentials-store name the provider resolves per call.',
     countLabel: 'Result count',
-    countHint: 'Results per search when no explicit bound is given (1\u201320).',
+    countHint: 'Results per search when no explicit bound is given (1\u2013100). Blank leaves the choice to Querit.',
     timeRangeLabel: 'Time range',
     timeRangeHint: 'Relative (d7, w2, m3, y1, \u2026) or YYYY-MM-DDtoYYYY-MM-DD.',
     languagesLabel: 'Languages',
-    languagesHint: 'Comma-separated: english, japanese, korean, german, french, spanish, portuguese.',
+    languagesHint: 'Comma-separated: english, japanese, korean, german, french, spanish, portuguese, russian.',
     countriesLabel: 'Countries',
     countriesHint: 'Comma-separated country bias (argentina, australia, brazil, \u2026).',
     includeLabel: 'Include domains',
     includeHint: 'Whitelist hostnames; only these domains return results.',
     excludeLabel: 'Exclude domains',
     excludeHint: 'Blacklist hostnames; these domains never return results.',
-    contentLabel: 'Include content excerpts',
-    contentHint: 'Request sentence-level content excerpts alongside snippets.',
+    contentLabel: 'Include body text',
+    contentHint: 'Request sentence-level body text alongside snippets. Billed per page.',
+    contentMaxCharsLabel: 'Body text limit',
+    contentMaxCharsHint: 'Characters of body text per result (1\u20131000000). Blank returns everything.',
+    highlightsLabel: 'Highlights',
+    highlightsHint: 'Ask Querit for the passages of each page that match the query, instead of whole pages.',
+    markdownLabel: 'Markdown body',
+    markdownHint: 'Enterprise plans only: return the snippet and body as Markdown.',
+    rankLabel: 'Ranking preference',
+    rankHint: 'A nudge on Querit\u2019s default ranking, not a sort. Not supported by the code vertical.',
+    verticalLabel: 'Vertical',
+    verticalHint: 'Route every search to a vertical data source. A mismatched vertical loses results, so leave unset unless this profile only asks code or finance questions.',
+    resourceTagsLabel: 'Vertical sub-tags',
+    resourceTagsHint: 'Code vertical only, comma-separated: qa, github. Blank searches the whole vertical.',
+    chunksLabel: 'Chunks per document (deprecated)',
+    chunksHint: 'Deprecated by Querit; prefer highlights. Blank sends nothing.',
     formatLabel: 'Fetch format',
     formatHint: 'Format requested from /v1/contents for fetch calls.'
   };
   var zh = {
-    title: 'Querit 网页搜索',
-    description: '基于 Querit 的搜索与抓取提供方。',
+    summary: 'Querit 网页搜索与网页抓取。配置 API Key、结果数量与搜索过滤条件。',
+    loading: '正在加载设置\u2026',
     readOnly: '本部署的设置为只读。',
-    expand: '展开设置',
-    collapse: '收起设置',
     pass: '密码',
     save: '保存',
     saving: '保存中\u2026',
     discard: '放弃修改',
-    unsaved: '未保存',
     overridden: '已覆盖',
     reset: '恢复默认',
+    useDefault: '默认（不设置）',
     saveFailed: '本部署没有接受这些值，已保留供你修改。',
-    invalidNumber: '请填数字；留空表示使用默认值。',
+    invalidNumber: '请填整数；留空表示使用默认值。',
     keyLabel: 'API Key',
     keyHint: '不写入设置文件。留空表示保持当前密钥。',
     keySet: '已为',
-    keyUnset: '未配置密钥；请在凭据文件或此处配置后搜索才可用。',
+    keyUnset: '未配置密钥；请在此处或凭据存储中配置后搜索才可用。',
     refLabel: '凭据引用名',
-    refHint: '每次调用解析的环境变量 / 凭据存储键名。',
+    refHint: '每次调用解析的凭据存储键名。',
     countLabel: '结果数量',
-    countHint: '未指定上限时每次搜索返回的结果数（1–20）。',
+    countHint: '未指定上限时每次搜索返回的结果数（1–100）。留空表示由 Querit 决定。',
     timeRangeLabel: '时间范围',
     timeRangeHint: '相对（d7、w2、m3、y1…）或 YYYY-MM-DDtoYYYY-MM-DD。',
     languagesLabel: '语言',
-    languagesHint: '逗号分隔：english、japanese、korean、german、french、spanish、portuguese。',
+    languagesHint: '逗号分隔：english、japanese、korean、german、french、spanish、portuguese、russian。',
     countriesLabel: '国家',
     countriesHint: '逗号分隔的国家偏好（argentina、australia、brazil…）。',
     includeLabel: '仅限域名',
     includeHint: '白名单主机名；只返回这些域的结果。',
     excludeLabel: '排除域名',
     excludeHint: '黑名单主机名；这些域永不返回结果。',
-    contentLabel: '包含内容摘要',
-    contentHint: '在摘要旁请求句子级内容摘录。',
+    contentLabel: '包含正文',
+    contentHint: '在摘要旁请求句子级正文。按页计费。',
+    contentMaxCharsLabel: '正文长度上限',
+    contentMaxCharsHint: '每条结果返回的正文字符数（1–1000000）。留空返回全部。',
+    highlightsLabel: '高亮片段',
+    highlightsHint: '让 Querit 只返回每个页面中与查询相关的段落，而不是整页。',
+    markdownLabel: 'Markdown 正文',
+    markdownHint: '仅企业版：以 Markdown 返回摘要与正文。',
+    rankLabel: '排序偏好',
+    rankHint: '在 Querit 默认排序之上的微调，并非严格排序。代码垂直搜索不支持。',
+    verticalLabel: '垂直搜索',
+    verticalHint: '把每次搜索都路由到垂直数据源。类型不匹配会丢失结果，除非本配置只问代码或金融问题，否则请留空。',
+    resourceTagsLabel: '垂直子标签',
+    resourceTagsHint: '仅代码垂直搜索，逗号分隔：qa、github。留空搜索整个垂直。',
+    chunksLabel: '每文档分块数（已废弃）',
+    chunksHint: 'Querit 已废弃，请改用高亮片段。留空则不发送。',
     formatLabel: '抓取格式',
     formatHint: '/v1/contents 抓取请求的格式。'
   };
@@ -476,13 +500,12 @@ function makeStore(initial) {
     return declared !== undefined && declared.length > 0 ? declared : DEFAULT_API_KEY_REF;
   }
 
-  /** Bridges the web-search-querit scope and the credentials domain onto the card. */
-  function QueritCardController(scope, ctx) {
-    this.scope = scope;
+  /** Bridges the entry's config form and the credentials domain onto the page. */
+  function QueritCardController(form, ctx) {
     this.ctx = ctx;
     this.credential = { ref: '', configured: false, writable: true };
     this.form = new QueritFormModel(
-      scope,
+      form,
       [
         textField('apiKeyEnv'),
         numberField('count'),
@@ -492,31 +515,50 @@ function makeStore(initial) {
         listField('includeDomains'),
         listField('excludeDomains'),
         booleanField('includeContent'),
+        numberField('contentMaxChars'),
+        booleanField('highlights'),
+        booleanField('needMarkdown'),
+        enumField('rank', RANK_VALUES),
+        enumField('vertical', VERTICAL_VALUES),
+        listField('resourceTags'),
+        numberField('chunksPerDoc'),
         enumField('fetchFormat', FETCH_FORMATS)
       ],
       [secretSpec('apiKey', (value) => this.writeKey(value))]
     );
     this.store = this.form.bind(() => this.projection());
-    var self = this;
-    scope.subscribe(() => {
-      self.readCredential();
+    this.unsubscribe = form.subscribe(() => {
+      this.readCredential();
     });
     this.readCredential();
   }
 
+  QueritCardController.prototype.dispose = function () {
+    this.unsubscribe();
+    this.form.dispose();
+  };
+
   QueritCardController.prototype.projection = function () {
+    var field = (name) => this.form.field(name);
     return {
       ...this.form.shell(),
-      apiKeyEnv: this.form.field('apiKeyEnv'),
-      count: this.form.field('count'),
-      timeRange: this.form.field('timeRange'),
-      languages: this.form.field('languages'),
-      countries: this.form.field('countries'),
-      includeDomains: this.form.field('includeDomains'),
-      excludeDomains: this.form.field('excludeDomains'),
-      includeContent: this.form.field('includeContent'),
-      fetchFormat: this.form.field('fetchFormat'),
-      apiKey: this.form.field('apiKey'),
+      apiKeyEnv: field('apiKeyEnv'),
+      count: field('count'),
+      timeRange: field('timeRange'),
+      languages: field('languages'),
+      countries: field('countries'),
+      includeDomains: field('includeDomains'),
+      excludeDomains: field('excludeDomains'),
+      includeContent: field('includeContent'),
+      contentMaxChars: field('contentMaxChars'),
+      highlights: field('highlights'),
+      needMarkdown: field('needMarkdown'),
+      rank: field('rank'),
+      vertical: field('vertical'),
+      resourceTags: field('resourceTags'),
+      chunksPerDoc: field('chunksPerDoc'),
+      fetchFormat: field('fetchFormat'),
+      apiKey: field('apiKey'),
       apiKeyConfigured: this.credential.configured,
       apiKeyWritable: this.credential.writable,
       apiKeyRef: this.credential.ref
@@ -525,7 +567,7 @@ function makeStore(initial) {
 
   QueritCardController.prototype.readCredential = function () {
     var self = this;
-    var ref = refOf(this.scope.getSnapshot());
+    var ref = refOf(this.form.scope.getSnapshot());
     if (ref !== this.credential.ref) {
       this.credential = { ref: ref, configured: false, writable: true };
       this.store.set(this.projection());
@@ -534,7 +576,7 @@ function makeStore(initial) {
       .describe([ref])
       .then(function (response) {
         if (!response || response.ok !== true) return;
-        if (ref !== refOf(self.scope.getSnapshot())) return;
+        if (ref !== refOf(self.form.scope.getSnapshot())) return;
         var view = response.value !== undefined ? response.value[ref] : undefined;
         var next = {
           ref: ref,
@@ -556,7 +598,7 @@ function makeStore(initial) {
   QueritCardController.prototype.writeKey = function (value) {
     var self = this;
     return this.ctx.remote.credentials
-      .set(refOf(this.scope.getSnapshot()), value)
+      .set(refOf(this.form.scope.getSnapshot()), value)
       .then(function () {
         return self.readCredential();
       })
@@ -574,31 +616,6 @@ function makeStore(initial) {
       ...this.form.actions()
     };
   };
-
-  /** Chevron-down icon mirroring the official PluginCard toggle glyph. */
-  function ChevronDown(props) {
-    var className = props.className || '';
-    return React.createElement(
-      'svg',
-      {
-        className: className,
-        width: 14,
-        height: 14,
-        viewBox: '0 0 14 14',
-        fill: 'none',
-        xmlns: 'http://www.w3.org/2000/svg',
-        'aria-hidden': true,
-        focusable: false
-      },
-      React.createElement('path', {
-        d: 'M3.5 5.25L7 8.75L10.5 5.25',
-        stroke: 'currentColor',
-        strokeWidth: 1.4,
-        strokeLinecap: 'round',
-        strokeLinejoin: 'round'
-      })
-    );
-  }
 
   /** One labeled control row. `inline` puts the control on the label line (toggle rows). */
   function FieldRow(props) {
@@ -651,137 +668,136 @@ function makeStore(initial) {
     );
   }
 
-  /** Render one plugin card: header naming the provider, disclosing its controls in place. */
-  function QueritCard(props) {
+  /** A checkbox row bound to one boolean field. */
+  function toggleRow(props, t, state, name, label, hint, id, disabled) {
+    return React.createElement(
+      FieldRow,
+      {
+        id: id,
+        label: label,
+        hint: hint,
+        state: state,
+        disabled: disabled,
+        inline: true,
+        overriddenLabel: t('overridden'),
+        resetLabel: t('reset'),
+        onReset: function () { props.resetField(name); }
+      },
+      React.createElement('input', {
+        className: 'qr-check',
+        type: 'checkbox',
+        disabled: disabled,
+        checked: state.text === 'true',
+        onChange: function (event) { props.edit(name, event.target.checked ? 'true' : 'false'); }
+      })
+    );
+  }
+
+  /** A dropdown over a fixed set, with a blank option that clears the field. */
+  function selectRow(props, t, state, name, label, hint, choices, id, disabled, optional) {
+    var options = (optional === true ? [React.createElement('option', { key: '', value: '' }, t('useDefault'))] : []).concat(
+      choices.map(function (choice) {
+        return React.createElement('option', { key: choice, value: choice }, choice);
+      })
+    );
+    return React.createElement(
+      FieldRow,
+      {
+        id: id,
+        label: label,
+        hint: hint,
+        state: state,
+        disabled: disabled,
+        overriddenLabel: t('overridden'),
+        resetLabel: t('reset'),
+        onReset: function () { props.resetField(name); },
+        inputProps: {
+          disabled: disabled,
+          value: state.text,
+          onChange: function (event) { props.edit(name, event.target.value); },
+          as: 'select'
+        },
+        options: options
+      }
+    );
+  }
+
+  /**
+   * The entry the Plugins page renders for the Querit row: a one-liner while
+   * collapsed (`view: 'summary'`), the settings form on the row's own page
+   * (`view: 'page'`). The page draws the row's title itself.
+   */
+  function QueritRowConfig(props) {
     var t = props.t || function (key) {
       return zh[key] || en[key] || key;
     };
+    if (props.view === 'summary') return React.createElement('span', null, t('summary'));
+
     var state = props.useQueritCard(function (snapshot) {
       return snapshot;
     });
-    var openState = React.useState(props.defaultOpen === true);
-    var open = openState[0];
-    var setOpen = openState[1];
     if (!state.available) return null;
     var disabled = !state.writable;
     var blocked = !state.dirty || state.invalid || state.saving;
     var text = function (control) {
       return control.text;
     };
-    var title = t('title');
+    var prefix = 'plugin-config-querit-';
     return React.createElement(
-      'li',
-      { className: 'qr-card' + (open ? ' qr-open' : '') },
+      'div',
+      { className: 'qr-page', 'data-querit-config': 'page' },
+      disabled ? React.createElement('p', { className: 'qr-readonly', role: 'status' }, t('readOnly')) : null,
       React.createElement(
-        'button',
+        FieldRow,
         {
-          type: 'button',
-          className: 'qr-header',
-          'aria-expanded': open ? 'true' : 'false',
-          'aria-label': t(open ? 'collapse' : 'expand') + ': ' + title,
-          onClick: function () { setOpen(!open); }
-        },
-        React.createElement(
-          'span',
-          { className: 'qr-head' },
-          React.createElement('span', { className: 'qr-name' }, title),
-          React.createElement('span', { className: 'qr-desc' }, t('description'))
-        ),
-        state.dirty ? React.createElement('span', { className: 'qr-pending' }, t('unsaved')) : null,
-        React.createElement(ChevronDown, { className: 'qr-chev' })
+          id: prefix + 'key',
+          label: t('keyLabel'),
+          hint: state.apiKeyConfigured
+            ? t('keySet') + ' ' + state.apiKeyRef + '.'
+            : t('keyUnset'),
+          disabled: disabled || !state.apiKeyWritable,
+          inputProps: {
+            className: 'qr-input',
+            type: 'password',
+            autoComplete: 'new-password',
+            disabled: disabled || !state.apiKeyWritable,
+            placeholder: state.apiKeyConfigured ? '\u2022\u2022\u2022\u2022\u2022\u2022' : '',
+            value: text(state.apiKey),
+            onChange: function (event) { props.edit('apiKey', event.target.value); }
+          }
+        }
       ),
-      open
-        ? React.createElement(
-            'div',
-            { className: 'qr-body' },
-            disabled ? React.createElement('p', { className: 'qr-readonly', role: 'status' }, t('readOnly')) : null,
-            React.createElement(
-              FieldRow,
-              {
-                id: 'plugin-config-querit-key',
-                label: t('keyLabel'),
-                hint: state.apiKeyConfigured
-                  ? t('keySet') + ' ' + state.apiKeyRef + '.'
-                  : t('keyUnset'),
-                disabled: disabled || !state.apiKeyWritable,
-                inputProps: {
-                  className: 'qr-input',
-                  type: 'password',
-                  autoComplete: 'new-password',
-                  disabled: disabled || !state.apiKeyWritable,
-                  placeholder: state.apiKeyConfigured ? '\u2022\u2022\u2022\u2022\u2022\u2022' : '',
-                  value: text(state.apiKey),
-                  onChange: function (event) { props.edit('apiKey', event.target.value); }
-                }
-              }
-            ),
-            field(props, t('refLabel'), t('refHint'), state.apiKeyEnv, 'apiKeyEnv', disabled, 'plugin-config-querit-env'),
-            field(props, t('countLabel'), t('countHint'), state.count, 'count', disabled, 'plugin-config-querit-count', true),
-            field(props, t('timeRangeLabel'), t('timeRangeHint'), state.timeRange, 'timeRange', disabled, 'plugin-config-querit-time'),
-            field(props, t('languagesLabel'), t('languagesHint'), state.languages, 'languages', disabled, 'plugin-config-querit-languages'),
-            field(props, t('countriesLabel'), t('countriesHint'), state.countries, 'countries', disabled, 'plugin-config-querit-countries'),
-            field(props, t('includeLabel'), t('includeHint'), state.includeDomains, 'includeDomains', disabled, 'plugin-config-querit-include'),
-            field(props, t('excludeLabel'), t('excludeHint'), state.excludeDomains, 'excludeDomains', disabled, 'plugin-config-querit-exclude'),
-            React.createElement(
-              FieldRow,
-              {
-                id: 'plugin-config-querit-content',
-                label: t('contentLabel'),
-                hint: t('contentHint'),
-                state: state.includeContent,
-                disabled: disabled,
-                inline: true,
-                overriddenLabel: t('overridden'),
-                resetLabel: t('reset'),
-                onReset: function () { props.resetField('includeContent'); }
-              },
-              React.createElement('input', {
-                className: 'qr-check',
-                type: 'checkbox',
-                disabled: disabled,
-                checked: state.includeContent.text === 'true',
-                onChange: function (event) { props.edit('includeContent', event.target.checked ? 'true' : 'false'); }
-              })
-            ),
-            React.createElement(
-              FieldRow,
-              {
-                id: 'plugin-config-querit-format',
-                label: t('formatLabel'),
-                hint: t('formatHint'),
-                state: state.fetchFormat,
-                disabled: disabled,
-                overriddenLabel: t('overridden'),
-                resetLabel: t('reset'),
-                onReset: function () { props.resetField('fetchFormat'); },
-                inputProps: {
-                  disabled: disabled,
-                  value: text(state.fetchFormat),
-                  onChange: function (event) { props.edit('fetchFormat', event.target.value); },
-                  as: 'select'
-                },
-                options: FETCH_FORMATS.map(function (format) {
-                  return React.createElement('option', { key: format, value: format }, format);
-                })
-              }
-            ),
-            React.createElement(
-              'div',
-              { className: 'qr-foot' },
-              state.failed ? React.createElement('p', { className: 'qr-failed', role: 'status' }, t('saveFailed')) : null,
-              React.createElement(
-                'button',
-                { type: 'button', className: 'qr-btn qr-discard', disabled: (!state.dirty && !state.failed) || state.saving, onClick: props.discard },
-                t('discard')
-              ),
-              React.createElement(
-                'button',
-                { type: 'button', className: 'qr-btn qr-save', disabled: blocked, onClick: props.save },
-                t(state.saving ? 'saving' : 'save')
-              )
-            )
-          )
-        : null
+      field(props, t('refLabel'), t('refHint'), state.apiKeyEnv, 'apiKeyEnv', disabled, prefix + 'env'),
+      field(props, t('countLabel'), t('countHint'), state.count, 'count', disabled, prefix + 'count', true),
+      field(props, t('timeRangeLabel'), t('timeRangeHint'), state.timeRange, 'timeRange', disabled, prefix + 'time'),
+      field(props, t('languagesLabel'), t('languagesHint'), state.languages, 'languages', disabled, prefix + 'languages'),
+      field(props, t('countriesLabel'), t('countriesHint'), state.countries, 'countries', disabled, prefix + 'countries'),
+      field(props, t('includeLabel'), t('includeHint'), state.includeDomains, 'includeDomains', disabled, prefix + 'include'),
+      field(props, t('excludeLabel'), t('excludeHint'), state.excludeDomains, 'excludeDomains', disabled, prefix + 'exclude'),
+      toggleRow(props, t, state.includeContent, 'includeContent', t('contentLabel'), t('contentHint'), prefix + 'content', disabled),
+      field(props, t('contentMaxCharsLabel'), t('contentMaxCharsHint'), state.contentMaxChars, 'contentMaxChars', disabled, prefix + 'content-max', true),
+      toggleRow(props, t, state.highlights, 'highlights', t('highlightsLabel'), t('highlightsHint'), prefix + 'highlights', disabled),
+      toggleRow(props, t, state.needMarkdown, 'needMarkdown', t('markdownLabel'), t('markdownHint'), prefix + 'markdown', disabled),
+      selectRow(props, t, state.rank, 'rank', t('rankLabel'), t('rankHint'), RANK_VALUES, prefix + 'rank', disabled, true),
+      selectRow(props, t, state.vertical, 'vertical', t('verticalLabel'), t('verticalHint'), VERTICAL_VALUES, prefix + 'vertical', disabled, true),
+      field(props, t('resourceTagsLabel'), t('resourceTagsHint'), state.resourceTags, 'resourceTags', disabled, prefix + 'resource-tags'),
+      field(props, t('chunksLabel'), t('chunksHint'), state.chunksPerDoc, 'chunksPerDoc', disabled, prefix + 'chunks', true),
+      selectRow(props, t, state.fetchFormat, 'fetchFormat', t('formatLabel'), t('formatHint'), FETCH_FORMATS, prefix + 'format', disabled, false),
+      React.createElement(
+        'div',
+        { className: 'qr-foot' },
+        state.failed ? React.createElement('p', { className: 'qr-failed', role: 'status' }, t('saveFailed')) : null,
+        React.createElement(
+          'button',
+          { type: 'button', className: 'qr-btn qr-discard', disabled: (!state.dirty && !state.failed) || state.saving, onClick: props.discard },
+          t('discard')
+        ),
+        React.createElement(
+          'button',
+          { type: 'button', className: 'qr-btn qr-save', disabled: blocked, onClick: props.save },
+          t(state.saving ? 'saving' : 'save')
+        )
+      )
     );
   }
 
@@ -813,57 +829,65 @@ function makeStore(initial) {
     );
   }
 
-  /** Required services (cordis fiber inject); `remote.credentials` gates the card on the credentials namespace. */
-  var inject = ['slots', 'locale', 'remote', 'remote.credentials', 'settingsScope'];
+  /** Required services (cordis fiber inject); `remote.credentials` gates the page on the credentials namespace. */
+  var inject = ['slots', 'locale', 'remote', 'remote.credentials', 'configForms'];
 
   /**
-   * Mount the Querit settings card into the plugins configuration tab.
+   * Mount the Querit row's configuration page while the Host serves its namespace.
    * @param ctx - the browser plugin context.
    */
   function apply(ctx) {
     var slots = ctx.get('slots');
-    var scopeService = ctx.get('settingsScope');
     var locale = ctx.get('locale');
-    if (slots === undefined || scopeService === undefined || locale === undefined) return;
-    // Register the card dictionaries, then bind our own translator. The slot
-    // framework may also deliver a `t` seat from the entry's `locale` option,
-    // but binding here guarantees text resolves even if that seat is not yet
-    // backed for this entry.
+    var configForms = ctx.get('configForms');
+    if (slots === undefined || locale === undefined || configForms === undefined) return;
+    // Register the page dictionaries, then bind our own translator so text
+    // resolves even if the slot framework delivers no `t` seat for this entry.
     var dicts = { zh: zh, en: en };
     ctx.effect(function () {
       return locale.register(NS, dicts);
-    }, 'dsh-querit: card dictionaries');
+    }, 'dsh-querit: page dictionaries');
     var t = locale.bind(NS);
-    var scope = scopeService.bind({ namespace: NAMESPACE });
-    var controller = new QueritCardController(scope, ctx);
+    var controller = new QueritCardController(configForms.get(NAMESPACE), ctx);
+    ctx.effect(function () {
+      return function () { controller.dispose(); };
+    }, 'dsh-querit: form subscription');
     var remote = ctx.get('remote');
     if (remote !== undefined) {
+      // A key written on another surface changes no settings section, so this
+      // event is the only signal that it reached the Host.
       ctx.effect(function () {
         return remote.$on('credentials/reference-updated', function (ref) {
           controller.refreshCredential(ref);
         });
       }, 'dsh-querit: credential invalidations');
     }
-    slots.inject('settings.plugin.item', function () {
-      return slots.register(
-        {
-          name: 'settings.plugin.item',
-          key: NAMESPACE,
-          locale: NS,
-          inject: function () {
-            var face = controller.inject();
-            face.t = t;
-            return face;
-          }
-        },
-        QueritCard
-      );
-    });
+    // A deployment that never composed this entry shows no trace of the page.
+    ctx.effect(function () {
+      return configForms.whileServed([NAMESPACE], function () {
+        return ctx.slots.inject('plugins.row.config', function () {
+          return ctx.slots.register(
+            {
+              name: 'plugins.row.config',
+              key: ROW_CONFIG_KEY,
+              locale: NS,
+              inject: function () {
+                var face = controller.inject();
+                face.t = t;
+                return face;
+              }
+            },
+            QueritRowConfig
+          );
+        });
+      });
+    }, 'dsh-querit: row configuration page');
   }
 
   exports.apply = apply;
   exports.inject = inject;
+  exports.ROW_CONFIG_KEY = ROW_CONFIG_KEY;
   exports.QueritCardController = QueritCardController;
-  exports.QueritCard = QueritCard;
+  exports.QueritRowConfig = QueritRowConfig;
   return module.exports;
 });

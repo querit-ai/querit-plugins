@@ -6,6 +6,12 @@
 #
 # A patch replaces the targeted row's whole `config`, so the `web` row below
 # restates every key it owns (search + fetch selection).
+#
+# The row id `web-search-querit` doubles as the entry's settings namespace and
+# as the key of its configuration page on the Plugins screen
+# (`dsh-querit#web-search-querit`). Renaming the row in a later layer detaches
+# that page: the providers keep working, but the row can only be configured
+# through the profile's own patch.
 
 - insert:
     - id: web-search-querit

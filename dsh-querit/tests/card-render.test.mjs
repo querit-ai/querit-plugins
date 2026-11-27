@@ -3,8 +3,8 @@
  *
  * The bundle is a loader-wrapped script, so it is executed inside a vm
  * sandbox that provides `module`/`exports`/`require` (mirroring the browser
- * loader contract); the exported QueritCard component is then rendered with
- * react-dom/server to assert the card actually draws its controls.
+ * loader contract); the exported row-configuration component is then rendered
+ * with react-dom/server to assert the page actually draws its controls.
  * Run `npm run build` before `npm test`.
  */
 import { describe, it, expect } from 'vitest';
@@ -28,7 +28,9 @@ function loadBundle() {
   return module.exports;
 }
 
-/** A ready, writable projection as the card component would receive it. */
+const control = (text, overridden = false) => ({ text, overridden, invalid: false });
+
+/** A ready, writable projection as the page component would receive it. */
 function snapshot(over = {}) {
   return {
     available: true,
@@ -37,16 +39,23 @@ function snapshot(over = {}) {
     invalid: false,
     saving: false,
     failed: false,
-    apiKeyEnv: { text: 'QUERIT_API_KEY', overridden: true, invalid: false },
-    count: { text: '5', overridden: false, invalid: false },
-    timeRange: { text: '', overridden: false, invalid: false },
-    languages: { text: '', overridden: false, invalid: false },
-    countries: { text: '', overridden: false, invalid: false },
-    includeDomains: { text: '', overridden: false, invalid: false },
-    excludeDomains: { text: '', overridden: false, invalid: false },
-    includeContent: { text: 'false', overridden: false, invalid: false },
-    fetchFormat: { text: 'markdown', overridden: false, invalid: false },
-    apiKey: { text: '', overridden: false, invalid: false },
+    apiKeyEnv: control('QUERIT_API_KEY', true),
+    count: control(''),
+    timeRange: control(''),
+    languages: control(''),
+    countries: control(''),
+    includeDomains: control(''),
+    excludeDomains: control(''),
+    includeContent: control('false'),
+    contentMaxChars: control(''),
+    highlights: control('false'),
+    needMarkdown: control('false'),
+    rank: control(''),
+    vertical: control(''),
+    resourceTags: control(''),
+    chunksPerDoc: control(''),
+    fetchFormat: control('markdown'),
+    apiKey: control(''),
     apiKeyConfigured: false,
     apiKeyWritable: true,
     apiKeyRef: 'QUERIT_API_KEY',
@@ -54,12 +63,12 @@ function snapshot(over = {}) {
   };
 }
 
-function render(snap) {
-  const { QueritCard } = loadBundle();
+function render(view, snap) {
+  const { QueritRowConfig } = loadBundle();
   return renderToStaticMarkup(
-    React.createElement(QueritCard, {
+    React.createElement(QueritRowConfig, {
+      view,
       t: (key) => key,
-      defaultOpen: true,
       useQueritCard: (select) => select(snap),
       edit: () => {},
       resetField: () => {},
@@ -69,44 +78,60 @@ function render(snap) {
   );
 }
 
-describe('QueritCard rendering (built bundle)', () => {
-  it('draws an input control for every section field', () => {
-    const html = render(snapshot());
+describe('QueritRowConfig rendering (built bundle)', () => {
+  it('renders a one-liner in the summary view', () => {
+    const html = render('summary', snapshot());
+    expect(html).toBe('<span>summary</span>');
+  });
+
+  it('draws a control for every section field', () => {
+    const html = render('page', snapshot());
     const inputs = html.match(/class="qr-input/g) ?? [];
-    expect(inputs.length).toBeGreaterThanOrEqual(8);
-    expect(html).toContain('countLabel');
-    expect(html).toContain('type="checkbox"');
+    const toggles = html.match(/class="qr-check"/g) ?? [];
+    // Ten text/number inputs, the key, and the three dropdowns.
+    expect(inputs.length).toBe(14);
+    expect(toggles.length).toBe(3);
+    for (const label of [
+      'countLabel', 'timeRangeLabel', 'languagesLabel', 'countriesLabel', 'includeLabel', 'excludeLabel',
+      'contentLabel', 'contentMaxCharsLabel', 'highlightsLabel', 'markdownLabel', 'rankLabel', 'verticalLabel',
+      'resourceTagsLabel', 'chunksLabel', 'formatLabel', 'keyLabel', 'refLabel',
+    ]) {
+      expect(html).toContain(label);
+    }
     expect(html).toContain('type="password"');
+    expect(html).toContain('useDefault');
+    expect(html).toContain('value="freshness"');
+    expect(html).toContain('value="finance"');
   });
 
   it('renders nothing while the namespace is unavailable', () => {
-    expect(render(snapshot({ available: false }))).toBe('');
+    expect(render('page', snapshot({ available: false }))).toBe('');
   });
 
   it('keeps controls enabled in a writable deployment', () => {
-    const html = render(snapshot());
-    const numberTag = html.match(/<input[^>]*type="number"[^>]*>/)?.[0] ?? '';
+    const numberTag = render('page', snapshot({ count: control('5') })).match(/<input[^>]*type="number"[^>]*>/)?.[0] ?? '';
     expect(numberTag).toContain('value="5"');
     expect(numberTag).not.toContain('disabled');
   });
 
   it('disables controls in a read-only deployment', () => {
-    const html = render(snapshot({ writable: false }));
+    const html = render('page', snapshot({ writable: false }));
     const numberTag = html.match(/<input[^>]*type="number"[^>]*>/)?.[0] ?? '';
     expect(numberTag).toContain('disabled');
+    expect(html).toContain('readOnly');
   });
 
   it('enables save only when the form is dirty', () => {
     const saveTag = (html) => html.match(/<button[^>]*class="qr-btn qr-save"[^>]*>/)?.[0] ?? '';
-    expect(saveTag(render(snapshot()))).toContain('disabled');
-    expect(saveTag(render(snapshot({ dirty: true, invalid: false })))).not.toContain('disabled');
+    expect(saveTag(render('page', snapshot()))).toContain('disabled');
+    expect(saveTag(render('page', snapshot({ dirty: true, invalid: false })))).not.toContain('disabled');
   });
 });
 
 /**
- * Wiring tests for the browser half: `apply` must mount through the client
- * seams dsh 0.1.2 provides (`remote.credentials`, dotted fiber inject), and
- * the controller must unwrap the new describe/set response shapes.
+ * Wiring tests for the browser half: `apply` must mount the row page through
+ * the client seams dsh 0.2 provides (`configForms`, `plugins.row.config`,
+ * `remote.credentials`), and the controller must unwrap their response shapes.
  */
 
 /** Let promise chains inside the vm bundle settle before asserting. */
@@ -114,17 +139,9 @@ function flush() {
   return new Promise((resolve) => setImmediate(resolve));
 }
 
-/** A ready, writable settings scope over an in-memory section. */
-function scopeStub(section = { apiKeyEnv: 'QUERIT_API_KEY' }) {
-  let snapshot = {
-    status: 'ready',
-    value: section,
-    base: {},
-    user: {},
-    revision: 1,
-    writable: true,
-    mode: 'host',
-  };
+/** A ready, writable config form over an in-memory section (the `ConfigForm` shape). */
+function formStub(section = { apiKeyEnv: 'QUERIT_API_KEY' }) {
+  let snapshot = { status: 'ready', value: section, base: {}, user: {}, revision: 1, writable: true };
   const listeners = new Set();
   const notify = () => listeners.forEach((fn) => fn());
   return {
@@ -136,12 +153,14 @@ function scopeStub(section = { apiKeyEnv: 'QUERIT_API_KEY' }) {
     async set(field, value) {
       snapshot = { ...snapshot, value: { ...snapshot.value, [field]: value } };
       notify();
+      return true;
     },
     async unset(field) {
       const value = { ...snapshot.value };
       delete value[field];
       snapshot = { ...snapshot, value };
       notify();
+      return true;
     },
   };
 }
@@ -174,12 +193,15 @@ function remoteStub() {
 }
 
 describe('browser apply wiring (built bundle)', () => {
-  it('declares the 0.1.2 client services and mounts the card slot', async () => {
-    const { apply, inject } = loadBundle();
-    expect(inject).toEqual(['slots', 'locale', 'remote', 'remote.credentials', 'settingsScope']);
+  it('declares the 0.2 client services and mounts the plugins.row.config slot', async () => {
+    const { apply, inject, ROW_CONFIG_KEY } = loadBundle();
+    expect(inject).toEqual(['slots', 'locale', 'remote', 'remote.credentials', 'configForms']);
+    expect(ROW_CONFIG_KEY).toBe('dsh-querit#web-search-querit');
 
     const { calls, remote } = remoteStub();
     const injected = [];
+    const served = [];
+    const form = formStub();
     const services = {
       slots: {
         inject(name, register) {
@@ -193,11 +215,18 @@ describe('browser apply wiring (built bundle)', () => {
         register: () => () => {},
         bind: () => (key) => key,
       },
-      settingsScope: { bind: () => scopeStub() },
+      configForms: {
+        get: (namespace) => (namespace === 'web-search-querit' ? form : undefined),
+        whileServed(namespaces, register) {
+          served.push(namespaces);
+          return register();
+        },
+      },
       remote,
     };
     const ctx = {
       get: (name) => services[name],
+      slots: services.slots,
       remote,
       effect(fn) {
         fn();
@@ -208,18 +237,32 @@ describe('browser apply wiring (built bundle)', () => {
     apply(ctx);
     await flush();
 
+    expect(served).toEqual([['web-search-querit']]);
     expect(injected).toHaveLength(1);
     const [slotName, registration] = injected[0];
-    expect(slotName).toBe('settings.plugin.item');
-    expect(registration.key).toBe('web-search-querit');
+    expect(slotName).toBe('plugins.row.config');
+    expect(registration).toMatchObject({ name: 'plugins.row.config', key: 'dsh-querit#web-search-querit', locale: 'dsh-querit' });
+    expect(registration.inject().edit('count', '5')).toBeUndefined();
     expect(typeof calls.events['credentials/reference-updated']).toBe('function');
     expect(calls.describe).toEqual([['QUERIT_API_KEY']]);
+  });
+
+  it('stays inert without the configForms service', () => {
+    const { apply } = loadBundle();
+    const injected = [];
+    const services = {
+      slots: { inject: (name) => injected.push(name), register: () => ({}) },
+      locale: { register: () => () => {}, bind: () => (key) => key },
+    };
+    apply({ get: (name) => services[name], effect: (fn) => fn() });
+    expect(injected).toEqual([]);
   });
 
   it('reads and writes the key through remote.credentials shapes', async () => {
     const { QueritCardController } = loadBundle();
     const { calls, remote } = remoteStub();
-    const controller = new QueritCardController(scopeStub(), { remote });
+    const form = formStub();
+    const controller = new QueritCardController(form, { remote });
 
     await flush();
     expect(calls.describe).toEqual([['QUERIT_API_KEY']]);
@@ -227,5 +270,34 @@ describe('browser apply wiring (built bundle)', () => {
 
     await controller.writeKey('sk-new');
     expect(calls.set).toEqual([['QUERIT_API_KEY', 'sk-new']]);
+
+    controller.dispose();
+    expect(controller.store.getSnapshot().available).toBe(true);
+  });
+
+  it('saves the newer fields through the config form', async () => {
+    const { QueritCardController } = loadBundle();
+    const { remote } = remoteStub();
+    const form = formStub();
+    const controller = new QueritCardController(form, { remote });
+    const actions = controller.inject();
+
+    actions.edit('highlights', 'true');
+    actions.edit('rank', 'freshness');
+    actions.edit('count', '50');
+    actions.edit('vertical', 'code');
+    await actions.save();
+
+    expect(form.getSnapshot().value).toEqual({
+      apiKeyEnv: 'QUERIT_API_KEY',
+      count: 50,
+      highlights: true,
+      rank: 'freshness',
+      vertical: 'code',
+    });
+    // A blank dropdown clears the field back to the composition layer.
+    actions.edit('rank', '');
+    await actions.save();
+    expect(form.getSnapshot().value).not.toHaveProperty('rank');
   });
 });

@@ -2,32 +2,65 @@
  * Credential-safe client for the public Querit API
  * (`POST https://api.querit.ai/v1/search` and `/v1/contents`).
  * Structure follows the client shipped by pi-querit (MIT):
- * response-size limits, deduplication, URL normalization, and API-key
- * redaction from every error surface.
+ * response-size limits, deduplication, URL normalization, API-key
+ * redaction from every error surface, and retries for the statuses
+ * Querit documents as transient.
  * @module dsh-querit/client
  */
-import { sanitizeUntrustedText } from "./sanitize.js";
-
-export const QUERIT_API_BASE_URL = "https://api.querit.ai";
-export const DEFAULT_REQUEST_TIMEOUT_MS = 70_000;
-
-/** Attribution header sent on every request. Bump with the package version. */
-const USER_AGENT = "dsh-querit/1.1.2";
+import { sanitizeErrorMessage, sanitizeUntrustedText } from "./sanitize.js";
 
 const SEARCH_RESPONSE_MAX_BYTES = 2 * 1024 * 1024;
 const CONTENTS_RESPONSE_MAX_BYTES = 10 * 1024 * 1024;
 const ERROR_RESPONSE_MAX_BYTES = 8 * 1024;
+/** Attribution header sent on every request. Bump with the package version. */
+const USER_AGENT = "dsh-querit/2.0.0";
+/** Querit documents these as the only statuses worth retrying; never 400, 401, 403, or 404. */
+const RETRYABLE_STATUSES = new Set([429, 500, 503]);
+
+/** Per-operation deadline, retries and backoff waits included. */
+export const DEFAULT_REQUEST_TIMEOUT_MS = 70_000;
+export const QUERIT_API_BASE_URL = "https://api.querit.ai";
+/** Largest `count` the API accepts. */
+export const QUERIT_COUNT_LIMIT = 100;
+/** Largest `contentMaxChars` the API accepts. */
+export const QUERIT_CONTENT_MAX_CHARS_LIMIT = 1_000_000;
+/** The values `filters.vertical`, `rank.preference`, and `filters.resourceTags.include[]` accept. */
+export const VERTICAL_VALUES = ["code", "finance"] as const;
+export const RANK_VALUES = ["relevance", "freshness"] as const;
+export const RESOURCE_TAG_VALUES = ["qa", "github"] as const;
+
+export type QueritVertical = (typeof VERTICAL_VALUES)[number];
+export type QueritRankPreference = (typeof RANK_VALUES)[number];
+export type QueritResourceTag = (typeof RESOURCE_TAG_VALUES)[number];
+
+interface QueritHighlights {
+  /** Guides the extraction; Querit falls back to the top-level query when omitted. */
+  query?: string;
+  maxCharacters?: number;
+}
 
 export interface QueritSearchRequest {
   query: string;
-  count: number;
+  /** Omit to let Querit apply its server default. */
+  count?: number;
+  /** Deprecated by Querit in favor of `highlights`. Send only when a user explicitly configured it. */
   chunksPerDoc?: number;
+  highlights?: boolean | QueritHighlights;
   needContent?: boolean;
+  /** Body-text limit per result; only meaningful together with `needContent: true`. */
+  contentMaxChars?: number;
+  /** Enterprise only; ignored by Querit on other plans. */
+  needMarkdown?: boolean;
+  /** Returns 400 when combined with `filters.vertical: "code"`. */
+  rank?: { preference: QueritRankPreference };
   filters?: {
     sites?: { include?: string[]; exclude?: string[] };
     timeRange?: { date: string };
     geo?: { countries: { include: string[] } };
     languages?: { include: string[] };
+    vertical?: QueritVertical;
+    /** Sub-tags of a vertical. Only `qa` and `github`, on the code vertical, are documented. */
+    resourceTags?: { include?: QueritResourceTag[] };
   };
 }
 
@@ -36,48 +69,95 @@ export interface QueritContentsRequest {
   format: "text" | "markdown" | "html";
   crawlTimeout: number;
   extrasMeta: boolean;
+  /** Content limit per URL. Omit for the full available content. */
+  contentMaxChars?: number;
+  highlights?: QueritHighlights;
 }
 
-export interface QueritSearchResult {
+interface QueritCost {
+  /** Querit always reports "USD". */
+  currency: string;
+  /** Charge in dollars with up to six decimal places; 0 is a reported zero charge. */
+  total: number;
+}
+
+interface QueritSearchResult {
   title: string;
   url: string;
   snippet: string;
   pageAge?: string;
   siteName?: string;
   siteIcon?: string;
+  /** Body text, present only when `needContent: true` was requested and is available. */
   sentences: string[];
+  /** Query-focused fragments, present only when `highlights` was requested and is available. */
+  highlights: string[];
+  /** Markdown versions. Omitted unless `needMarkdown: true` was requested on an Enterprise plan. */
+  snippetMarkdown?: string[];
+  contentMarkdown?: string;
 }
 
 export interface QueritSearchResponse {
+  errorCode?: string;
+  errorMessage?: string;
   searchId?: string;
   took?: string;
+  /** Absent means unavailable, never "free". */
+  cost?: QueritCost;
   query: string;
   results: QueritSearchResult[];
 }
 
-export interface QueritContentResult {
+interface QueritContentMetadata {
+  title?: string;
+  url?: string;
+  publishTime?: string;
+  siteName?: string;
+  siteIcon?: string;
+}
+
+interface QueritContentResult {
   id?: string;
   url: string;
   content: string;
+  highlights: string[];
+  metadata?: QueritContentMetadata;
 }
 
-export interface QueritContentStatus {
+interface QueritContentStatus {
   id?: string;
   status?: string;
 }
 
 export interface QueritContentsResponse {
+  errorCode?: string;
+  errorMessage?: string;
   searchId?: string;
+  searchTime?: number;
+  /** Absent means unavailable, never "free". */
+  cost?: QueritCost;
   results: QueritContentResult[];
   statuses: QueritContentStatus[];
-  searchTime?: number;
+}
+
+export interface QueritRetryOptions {
+  /** Retries after the first attempt. `0` disables retries. */
+  maxRetries: number;
+  baseDelayMs: number;
+  /**
+   * Ceiling for backoff waits and for an honored `Retry-After`. A `Retry-After` that
+   * exceeds it is not waited out: the tool call fails instead of blocking the agent.
+   */
+  maxDelayMs: number;
 }
 
 export interface QueritClientOptions {
   apiKey: string;
   fetchImpl?: typeof fetch;
   baseUrl?: string;
+  /** Deadline for the whole operation, retries and backoff waits included. */
   timeoutMs?: number;
+  retry?: Partial<QueritRetryOptions>;
 }
 
 interface ParsedResponse {
@@ -85,15 +165,34 @@ interface ParsedResponse {
   searchId?: string;
 }
 
+/** The signals one operation runs under. */
+interface Operation {
+  /** What the request and the backoff waits listen to: the caller's signal and the deadline together. */
+  signal: AbortSignal;
+  callerSignal?: AbortSignal;
+  deadline: AbortSignal;
+}
+
+const DEFAULT_RETRY: QueritRetryOptions = { maxRetries: 2, baseDelayMs: 500, maxDelayMs: 5_000 };
+
 export class QueritApiError extends Error {
   readonly status?: number;
   readonly searchId?: string;
+  /** Wait the server asked for through `Retry-After`, when it sent one. */
+  readonly retryAfterMs?: number;
+  /** Requests sent before giving up, including the first. */
+  readonly attempts: number;
 
-  constructor(message: string, options: { status?: number; searchId?: string; cause?: unknown } = {}) {
+  constructor(
+    message: string,
+    options: { status?: number; searchId?: string; retryAfterMs?: number; attempts?: number; cause?: unknown } = {},
+  ) {
     super(message, options.cause === undefined ? undefined : { cause: options.cause });
     this.name = "QueritApiError";
     this.status = options.status;
     this.searchId = options.searchId;
+    this.retryAfterMs = options.retryAfterMs;
+    this.attempts = options.attempts ?? 1;
   }
 }
 
@@ -102,6 +201,7 @@ export class QueritClient {
   private readonly fetchImpl: typeof fetch;
   private readonly baseUrl: string;
   private readonly timeoutMs: number;
+  private readonly retry: QueritRetryOptions;
 
   constructor(options: QueritClientOptions) {
     const apiKey = options.apiKey.trim();
@@ -113,6 +213,7 @@ export class QueritClient {
     this.fetchImpl = options.fetchImpl ?? globalThis.fetch;
     this.baseUrl = (options.baseUrl ?? QUERIT_API_BASE_URL).replace(/\/+$/, "");
     this.timeoutMs = options.timeoutMs ?? DEFAULT_REQUEST_TIMEOUT_MS;
+    this.retry = { ...DEFAULT_RETRY, ...options.retry };
   }
 
   async search(request: QueritSearchRequest, signal?: AbortSignal): Promise<QueritSearchResponse> {
@@ -125,14 +226,61 @@ export class QueritClient {
     return normalizeContentsResponse(response.body, response.searchId);
   }
 
+  /**
+   * Posts the request, retrying the statuses Querit calls transient with bounded
+   * exponential backoff and jitter. One deadline covers every attempt and wait.
+   */
   private async postJson(
     path: string,
     requestBody: QueritSearchRequest | QueritContentsRequest,
     responseLimit: number,
     callerSignal?: AbortSignal,
   ): Promise<ParsedResponse> {
-    const timeoutSignal = AbortSignal.timeout(this.timeoutMs);
-    const signal = callerSignal ? AbortSignal.any([callerSignal, timeoutSignal]) : timeoutSignal;
+    const deadline = AbortSignal.timeout(this.timeoutMs);
+    const operation: Operation = {
+      deadline,
+      callerSignal,
+      signal: callerSignal ? AbortSignal.any([callerSignal, deadline]) : deadline,
+    };
+
+    for (let attempt = 0; ; attempt++) {
+      let failure: QueritApiError;
+      try {
+        return await this.attempt(path, requestBody, responseLimit, operation);
+      } catch (error) {
+        failure = error instanceof QueritApiError
+          ? error
+          : new QueritApiError(sanitizeErrorMessage(error), { cause: error });
+      }
+
+      // Cancellations and timeouts are reported as-is: they are not transient server states.
+      const retryable = RETRYABLE_STATUSES.has(failure.status ?? 0);
+      if (!retryable || attempt >= this.retry.maxRetries) throw withAttempts(failure, attempt + 1);
+
+      const waitMs = retryDelayMs(failure.retryAfterMs, attempt, this.retry);
+      if (waitMs === undefined) {
+        // Honor an over-long Retry-After by not retrying sooner.
+        throw withAttempts(new QueritApiError(
+          `${failure.message} Querit asked to retry after ${Math.ceil((failure.retryAfterMs ?? 0) / 1_000)}s, `
+          + `longer than the ${this.retry.maxDelayMs} ms this client waits; not retried.`,
+          { status: failure.status, searchId: failure.searchId, retryAfterMs: failure.retryAfterMs, cause: failure },
+        ), attempt + 1);
+      }
+
+      try {
+        await sleep(waitMs, operation.signal);
+      } catch (cancelled) {
+        throw interrupted(cancelled, operation, this.timeoutMs, sanitizeErrorMessage(cancelled));
+      }
+    }
+  }
+
+  private async attempt(
+    path: string,
+    requestBody: QueritSearchRequest | QueritContentsRequest,
+    responseLimit: number,
+    operation: Operation,
+  ): Promise<ParsedResponse> {
     let response: Response;
 
     try {
@@ -141,20 +289,14 @@ export class QueritClient {
         headers: {
           Accept: "application/json",
           Authorization: `Bearer ${this.apiKey}`,
-          "Content-Type": "application/json",
           "User-Agent": USER_AGENT,
+          "Content-Type": "application/json",
         },
         body: JSON.stringify(requestBody),
-        signal,
+        signal: operation.signal,
       });
     } catch (error) {
-      if (callerSignal?.aborted) {
-        throw new QueritApiError("Querit request was cancelled.", { cause: error });
-      }
-      if (timeoutSignal.aborted) {
-        throw new QueritApiError(`Querit request timed out after ${this.timeoutMs} ms.`, { cause: error });
-      }
-      throw new QueritApiError(`Querit request failed: ${errorMessage(error)}`, { cause: error });
+      throw interrupted(error, operation, this.timeoutMs, `Querit request failed: ${sanitizeErrorMessage(error)}`);
     }
 
     const bodyLimit = response.ok ? responseLimit : ERROR_RESPONSE_MAX_BYTES;
@@ -162,19 +304,13 @@ export class QueritClient {
     try {
       text = await readResponseText(response, bodyLimit);
     } catch (error) {
-      if (callerSignal?.aborted) {
-        throw new QueritApiError("Querit request was cancelled.", { status: response.status, cause: error });
-      }
-      if (timeoutSignal.aborted) {
-        throw new QueritApiError(`Querit request timed out after ${this.timeoutMs} ms.`, {
-          status: response.status,
-          cause: error,
-        });
-      }
-      throw new QueritApiError(`Could not read the Querit response: ${errorMessage(error)}`, {
-        status: response.status,
-        cause: error,
-      });
+      throw interrupted(
+        error,
+        operation,
+        this.timeoutMs,
+        `Could not read the Querit response: ${sanitizeErrorMessage(error)}`,
+        response.status,
+      );
     }
 
     const searchId = extractSearchId(text);
@@ -184,9 +320,12 @@ export class QueritClient {
     } catch (error) {
       const excerpt = redactSecret(text.slice(0, 500), this.apiKey);
       if (!response.ok) {
-        throw new QueritApiError(
+        throw this.apiError(
           `Querit API request failed with HTTP ${response.status}${excerpt ? `: ${excerpt}` : "."}`,
-          { status: response.status, searchId, cause: error },
+          response,
+          response.status,
+          searchId,
+          error,
         );
       }
       throw new QueritApiError(
@@ -205,16 +344,112 @@ export class QueritClient {
     const apiErrorCode = optionalString(payload.error_code);
     const apiErrorMessage = optionalString(payload.error_msg);
     const numericErrorCode = apiErrorCode === undefined ? undefined : Number(apiErrorCode);
+    // Querit asks clients to check error_code even on an HTTP 200.
     if (!response.ok || (Number.isFinite(numericErrorCode) && numericErrorCode !== 200)) {
-      const message = redactSecret(
-        apiErrorMessage ?? `Querit API request failed with HTTP ${response.status}.`,
-        this.apiKey,
+      // error_code is the request's own verdict; the HTTP status stands in when the body has none.
+      const status = response.ok ? (numericErrorCode ?? response.status) : response.status;
+      throw this.apiError(
+        redactSecret(apiErrorMessage ?? `Querit API request failed with HTTP ${response.status}.`, this.apiKey),
+        response,
+        status,
+        searchId,
       );
-      throw new QueritApiError(message, { status: response.status, searchId });
     }
 
     return { body: payload, searchId };
   }
+
+  /**
+   * Marks an API failure with its status and Retry-After so postJson can decide whether to
+   * retry, and puts search_id in the message: support needs it to trace the request.
+   */
+  private apiError(
+    message: string,
+    response: Response,
+    status: number,
+    searchId: string | undefined,
+    cause?: unknown,
+  ): QueritApiError {
+    const traced = searchId ? `${message} [search_id: ${searchId}]` : message;
+    return new QueritApiError(traced, {
+      status,
+      searchId,
+      retryAfterMs: parseRetryAfter(response.headers.get("retry-after")),
+      cause,
+    });
+  }
+}
+
+/** Says how many requests a final failure took, when the first one was retried. */
+function withAttempts(failure: QueritApiError, attempts: number): QueritApiError {
+  if (attempts <= 1) return failure;
+  return new QueritApiError(`Querit request failed after ${attempts} attempts: ${failure.message}`, {
+    status: failure.status,
+    searchId: failure.searchId,
+    retryAfterMs: failure.retryAfterMs,
+    attempts,
+    cause: failure,
+  });
+}
+
+/**
+ * Says when the caller cancelled or the deadline passed — neither is a transient
+ * server state, so neither is retried — and otherwise reports `failure`.
+ * `status` is the HTTP status, when a response had already arrived.
+ */
+function interrupted(
+  error: unknown,
+  operation: Operation,
+  timeoutMs: number,
+  failure: string,
+  status?: number,
+): QueritApiError {
+  if (operation.callerSignal?.aborted) {
+    return new QueritApiError("Querit request was cancelled.", { status, cause: error });
+  }
+  if (operation.deadline.aborted) {
+    return new QueritApiError(`Querit request timed out after ${timeoutMs} ms.`, { status, cause: error });
+  }
+  return new QueritApiError(failure, { status, cause: error });
+}
+
+function retryDelayMs(retryAfterMs: number | undefined, attempt: number, retry: QueritRetryOptions): number | undefined {
+  if (retryAfterMs !== undefined) {
+    return retryAfterMs <= retry.maxDelayMs ? retryAfterMs : undefined;
+  }
+  // Equal jitter: half the ceiling plus a random half, so waits back off without clustering.
+  const ceiling = Math.min(retry.maxDelayMs, retry.baseDelayMs * 2 ** attempt);
+  return Math.round(ceiling / 2 + Math.random() * (ceiling / 2));
+}
+
+/** Parses `Retry-After` in both forms the HTTP spec allows: delay-seconds or an HTTP-date. */
+export function parseRetryAfter(value: string | null, now = Date.now()): number | undefined {
+  if (value === null) return undefined;
+  const trimmed = value.trim();
+  if (/^\d+(?:\.\d+)?$/.test(trimmed)) {
+    return Math.max(0, Math.ceil(Number(trimmed) * 1_000));
+  }
+  const date = Date.parse(trimmed);
+  if (!Number.isFinite(date)) return undefined;
+  return Math.max(0, date - now);
+}
+
+function sleep(ms: number, signal: AbortSignal): Promise<void> {
+  return new Promise((resolve, reject) => {
+    if (signal.aborted) {
+      reject(signal.reason);
+      return;
+    }
+    const onAbort = () => {
+      clearTimeout(timer);
+      reject(signal.reason);
+    };
+    const timer = setTimeout(() => {
+      signal.removeEventListener("abort", onAbort);
+      resolve();
+    }, ms);
+    signal.addEventListener("abort", onAbort, { once: true });
+  });
 }
 
 async function readResponseText(response: Response, maxBytes: number): Promise<string> {
@@ -267,6 +502,7 @@ function normalizeSearchResponse(
   for (const rawItem of resultsContainer.result) {
     if (!isRecord(rawItem)) continue;
     const url = normalizeHttpUrl(rawItem.url);
+    // Every result field is optional; a result without a usable URL cannot be cited.
     if (!url || deduplicated.has(url)) continue;
 
     deduplicated.set(url, {
@@ -276,16 +512,20 @@ function normalizeSearchResponse(
       pageAge: optionalString(rawItem.page_age),
       siteName: optionalString(rawItem.site_name),
       siteIcon: optionalString(rawItem.site_icon),
-      sentences: Array.isArray(rawItem.sentence)
-        ? rawItem.sentence.filter((value): value is string => typeof value === "string")
-        : [],
+      sentences: stringList(rawItem.sentence),
+      highlights: stringList(rawItem.highlights),
+      snippetMarkdown: optionalStringList(rawItem.snippet_markdown),
+      contentMarkdown: optionalString(rawItem.content_markdown),
     });
   }
 
   const queryContext = isRecord(payload.query_context) ? payload.query_context : undefined;
   return {
+    errorCode: optionalString(payload.error_code),
+    errorMessage: optionalString(payload.error_msg),
     searchId,
     took: optionalString(payload.took),
+    cost: normalizeCost(payload.cost),
     query: queryContext ? optionalString(queryContext.query) ?? requestedQuery : requestedQuery,
     results: [...deduplicated.values()],
   };
@@ -305,10 +545,23 @@ function normalizeContentsResponse(
     const url = normalizeHttpUrl(rawResult.url);
     if (!url || deduplicated.has(url)) continue;
 
+    const rawMetadata = isRecord(rawResult.extrasMeta) ? rawResult.extrasMeta : undefined;
+    const metadata = rawMetadata
+      ? {
+          title: optionalString(rawMetadata.title),
+          url: normalizeHttpUrl(rawMetadata.url),
+          publishTime: optionalString(rawMetadata.publishTime),
+          siteName: optionalString(rawMetadata.siteName),
+          siteIcon: normalizeHttpUrl(rawMetadata.siteIcon),
+        }
+      : undefined;
+
     deduplicated.set(url, {
       id: optionalString(rawResult.id),
       url,
       content: optionalString(rawResult.content) ?? "",
+      highlights: stringList(rawResult.highlights),
+      metadata,
     });
   }
 
@@ -320,11 +573,27 @@ function normalizeContentsResponse(
     }));
 
   return {
+    errorCode: optionalString(payload.error_code),
+    errorMessage: optionalString(payload.error_msg),
     searchId,
+    searchTime: optionalNumber(payload.searchTime),
+    cost: normalizeCost(payload.cost),
     results: [...deduplicated.values()],
     statuses,
-    searchTime: optionalNumber(payload.searchTime),
   };
+}
+
+/** Reads `cost`, keeping Querit's "absent means unavailable" distinct from a reported zero. */
+function normalizeCost(value: unknown): QueritCost | undefined {
+  if (!isRecord(value) || typeof value.currency !== "string") return undefined;
+  const total = optionalNumber(value.total);
+  if (total === undefined || total < 0) return undefined;
+  return { currency: value.currency, total };
+}
+
+/** Renders a cost at the API's six-decimal precision so small charges stay visible. */
+export function formatCost(cost: QueritCost): string {
+  return `${cost.currency} ${cost.total.toFixed(6)}`;
 }
 
 function extractSearchId(text: string): string | undefined {
@@ -359,10 +628,16 @@ function optionalNumber(value: unknown): number | undefined {
   return typeof value === "number" && Number.isFinite(value) ? value : undefined;
 }
 
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === "object" && value !== null && !Array.isArray(value);
+/** Reads an optional string array, dropping anything that is not a string. */
+function stringList(value: unknown): string[] {
+  return Array.isArray(value) ? value.filter((item): item is string => typeof item === "string") : [];
 }
 
-function errorMessage(error: unknown): string {
-  return sanitizeUntrustedText(error instanceof Error ? error.message : String(error));
+/** Like stringList, but keeps "the API omitted this field" distinct from an empty list. */
+function optionalStringList(value: unknown): string[] | undefined {
+  return Array.isArray(value) ? stringList(value) : undefined;
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
 }

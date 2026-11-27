@@ -3,16 +3,16 @@
  *
  * This file is the SINGLE SOURCE of truth for the card's field conversions and
  * save planning. The browser bundle inlines these exact definitions (see
- * scripts/build-client.mjs); the node-side unit tests import them through the
- * exports at the bottom. Keep everything here free of DOM, React, and window
- * references so both consumers can run it.
+ * scripts/build-client.mjs); the node-side unit tests import this file
+ * directly. Keep everything here free of DOM, React, and window references so
+ * both consumers can run it.
  */
 
 /**
  * A whole-number field. An empty draft clears the field; any other draft that
  * is not a finite number blocks the save.
  * @param {string} field - field name inside the namespace section.
- * @returns {import('./client-types.js').FieldSpec} the field's conversion spec.
+ * @returns {object} the field's conversion spec: `format(value)` renders a stored value, `parse(text)` reads a draft back.
  */
 export function numberField(field) {
   return {
@@ -33,7 +33,7 @@ export function numberField(field) {
  * A free-text field. An empty draft clears the field, so emptying the control
  * and saving is the same gesture as resetting it.
  * @param {string} field - field name inside the namespace section.
- * @returns {import('./client-types.js').FieldSpec} the field's conversion spec.
+ * @returns {object} the field's conversion spec: `format(value)` renders a stored value, `parse(text)` reads a draft back.
  */
 export function textField(field) {
   return {
@@ -50,7 +50,7 @@ export function textField(field) {
  * A comma-separated list field (string[] ↔ "a, b, c"). An empty draft clears
  * the field; duplicates and blank entries are dropped.
  * @param {string} field - field name inside the namespace section.
- * @returns {import('./client-types.js').FieldSpec} the field's conversion spec.
+ * @returns {object} the field's conversion spec: `format(value)` renders a stored value, `parse(text)` reads a draft back.
  */
 export function listField(field) {
   return {
@@ -75,7 +75,7 @@ export function listField(field) {
 /**
  * A boolean toggle field. It always writes a value; there is no "clear".
  * @param {string} field - field name inside the namespace section.
- * @returns {import('./client-types.js').FieldSpec} the field's conversion spec.
+ * @returns {object} the field's conversion spec: `format(value)` renders a stored value, `parse(text)` reads a draft back.
  */
 export function booleanField(field) {
   return {
@@ -90,7 +90,7 @@ export function booleanField(field) {
  * A single-choice field over a fixed set of strings.
  * @param {string} field - field name inside the namespace section.
  * @param {readonly string[]} choices - acceptable values.
- * @returns {import('./client-types.js').FieldSpec} the field's conversion spec.
+ * @returns {object} the field's conversion spec: `format(value)` renders a stored value, `parse(text)` reads a draft back.
  */
 export function enumField(field, choices) {
   return {
@@ -110,7 +110,7 @@ export function enumField(field, choices) {
  * stored in the credentials domain, never in the settings document).
  * @param {string} field - field name this control stages under.
  * @param {(value: string) => Promise<boolean>} write - persist the literal.
- * @returns {import('./client-types.js').SecretSpec} the secret's spec.
+ * @returns {object} the secret's spec: the field name and its `write`.
  */
 export function secretSpec(field, write) {
   return { field, write };
@@ -127,7 +127,7 @@ export function secretSpec(field, write) {
  * a field overridden.
  */
 export class QueritFormModel {
-  /** @param {import('./client-types.js').SettingsScope} scope - bound settings scope for the namespace. */
+  /** @param {object} scope - the namespace's config form: `getSnapshot()`, `subscribe(listener)`, `set(field, value)`, and `unset(field)`. */
   constructor(scope, specs, secrets = []) {
     this.scope = scope;
     this.specs = new Map(specs.map((spec) => [spec.field, spec]));
@@ -136,14 +136,20 @@ export class QueritFormModel {
     this.listeners = new Set();
     this.saving = false;
     this.failed = false;
-    scope.subscribe(() => this.publish());
+    this.unsubscribe = scope.subscribe(() => this.publish());
+  }
+
+  /** Stop following the scope; a disposed form publishes nothing more. */
+  dispose() {
+    this.unsubscribe();
+    this.listeners.clear();
   }
 
   /**
    * Publish a projection of this form rebuilt whenever the scope or a draft
    * changes.
    * @param {() => object} project - build the card's state from the form reads.
-   * @returns {import('./client-types.js').SnapshotStore} the store the component reads.
+   * @returns {object} the store the component reads: `getSnapshot()`, `subscribe(listener)`, and `set(next)`.
    */
   bind(project) {
     const store = makeStore(project());

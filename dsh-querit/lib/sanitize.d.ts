@@ -5,3 +5,5 @@
  * @module dsh-querit/sanitize
  */
 export declare function sanitizeUntrustedText(value: string): string;
+/** An error's message, sanitized: errors that carry remote text end up in the model's tool results. */
+export declare function sanitizeErrorMessage(error: unknown): string;

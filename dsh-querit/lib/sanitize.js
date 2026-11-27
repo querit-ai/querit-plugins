@@ -62,6 +62,10 @@ export function sanitizeUntrustedText(value) {
     }
     return output.replace(BIDI_CONTROLS, "");
 }
+/** An error's message, sanitized: errors that carry remote text end up in the model's tool results. */
+export function sanitizeErrorMessage(error) {
+    return sanitizeUntrustedText(error instanceof Error ? error.message : String(error));
+}
 function skipCsi(value, start) {
     let index = start;
     while (index < value.length) {

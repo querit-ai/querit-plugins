@@ -1,7 +1,7 @@
 {
   "name": "dsh-querit",
   "description": "Querit-backed search and fetch providers for the DeepSeek Harness web capability seam (ctx.web)",
-  "version": "1.1.2",
+  "version": "2.0.0",
   "type": "module",
   "main": "lib/index.js",
   "types": "lib/index.d.ts",
@@ -9,10 +9,6 @@
     ".": {
       "types": "./lib/index.d.ts",
       "default": "./lib/index.js"
-    },
-    "./invariant": {
-      "types": "./lib/invariant.d.ts",
-      "default": "./lib/invariant.js"
     },
     "./client": {
       "default": "./lib/card.js"
@@ -62,27 +58,23 @@
     "prepack": "npm run check && npm test && npm run build"
   },
   "peerDependencies": {
-    "@deepseek-ai/cordis": "^4.0.1",
-    "@deepseek-ai/dsh-api-remotes": ">=0.1.2-rc.1 <0.2.0 || >=0.1.5-alpha.1 <0.2.0 || >=0.1.6-alpha.1 <0.2.0",
-    "@deepseek-ai/dsh-client-connection": ">=0.1.2-rc.1 <0.2.0 || >=0.1.5-alpha.1 <0.2.0 || >=0.1.6-alpha.1 <0.2.0",
-    "@deepseek-ai/dsh-client-locale": ">=0.1.2-rc.1 <0.2.0 || >=0.1.5-alpha.1 <0.2.0 || >=0.1.6-alpha.1 <0.2.0",
-    "@deepseek-ai/dsh-client-ui-settings": ">=0.1.2-rc.1 <0.2.0 || >=0.1.5-alpha.1 <0.2.0 || >=0.1.6-alpha.1 <0.2.0",
-    "@deepseek-ai/dsh-credentials": ">=0.1.2-rc.1 <0.2.0 || >=0.1.5-alpha.1 <0.2.0 || >=0.1.6-alpha.1 <0.2.0",
-    "@deepseek-ai/dsh-invariants": ">=0.1.2-rc.1 <0.2.0 || >=0.1.5-alpha.1 <0.2.0 || >=0.1.6-alpha.1 <0.2.0",
-    "@deepseek-ai/dsh-launch-environment": ">=0.1.2-rc.1 <0.2.0 || >=0.1.5-alpha.1 <0.2.0 || >=0.1.6-alpha.1 <0.2.0",
-    "@deepseek-ai/dsh-settings": ">=0.1.2-rc.1 <0.2.0 || >=0.1.5-alpha.1 <0.2.0 || >=0.1.6-alpha.1 <0.2.0",
-    "@deepseek-ai/dsh-tool-web": ">=0.1.2-rc.1 <0.2.0 || >=0.1.5-alpha.1 <0.2.0 || >=0.1.6-alpha.1 <0.2.0",
-    "@deepseek-ai/dsh-web": ">=0.1.2-rc.1 <0.2.0 || >=0.1.5-alpha.1 <0.2.0 || >=0.1.6-alpha.1 <0.2.0",
-    "react": "^18.2.0"
+    "@deepseek-ai/cordis": ">=4.0.2 <5.0.0",
+    "@deepseek-ai/dsh-api-remotes": ">=0.2.2-rc.5 <0.3.0",
+    "@deepseek-ai/dsh-client-connection": ">=0.2.2-rc.5 <0.3.0",
+    "@deepseek-ai/dsh-client-locale": ">=0.2.2-rc.5 <0.3.0",
+    "@deepseek-ai/dsh-client-ui-settings": ">=0.2.2-rc.5 <0.3.0",
+    "@deepseek-ai/dsh-credentials": ">=0.2.2-rc.5 <0.3.0",
+    "@deepseek-ai/dsh-launch-environment": ">=0.2.2-rc.5 <0.3.0",
+    "@deepseek-ai/dsh-settings": ">=0.2.2-rc.5 <0.3.0",
+    "@deepseek-ai/dsh-tool-web": ">=0.2.2-rc.5 <0.3.0",
+    "@deepseek-ai/dsh-web": ">=0.2.2-rc.5 <0.3.0",
+    "react": ">=18.2.0"
   },
   "peerDependenciesMeta": {
     "@deepseek-ai/cordis": {
       "optional": true
     },
     "@deepseek-ai/dsh-credentials": {
-      "optional": true
-    },
-    "@deepseek-ai/dsh-invariants": {
       "optional": true
     },
     "@deepseek-ai/dsh-launch-environment": {
@@ -114,23 +106,30 @@
     }
   },
   "dependencies": {
-    "@deepseek-ai/schemastery": "^3.18.2"
+    "@deepseek-ai/schemastery": "^3.19.0"
   },
   "devDependencies": {
-    "@deepseek-ai/cordis": "^4.0.2",
-    "@deepseek-ai/dsh-credentials": "^0.1.5-rc.2",
-    "@deepseek-ai/dsh-invariants": "^0.1.5-rc.2",
-    "@deepseek-ai/dsh-launch-environment": "^0.1.5-rc.2",
-    "@deepseek-ai/dsh-settings": "^0.1.5-rc.2",
-    "@deepseek-ai/dsh-tool-web": "^0.1.5-rc.2",
-    "@deepseek-ai/dsh-web": "^0.1.5-rc.2",
-    "@types/node": "^22.0.0",
+    "@deepseek-ai/cordis": "^4.1.0",
+    "@deepseek-ai/dsh-api-remotes": "^0.2.2-rc.5",
+    "@deepseek-ai/dsh-client-connection": "^0.2.2-rc.5",
+    "@deepseek-ai/dsh-client-locale": "^0.2.2-rc.5",
+    "@deepseek-ai/dsh-client-ui-settings": "^0.2.2-rc.5",
+    "@deepseek-ai/dsh-credentials": "^0.2.2-rc.5",
+    "@deepseek-ai/dsh-launch-environment": "^0.2.2-rc.5",
+    "@deepseek-ai/dsh-llm": "^0.2.2-rc.5",
+    "@deepseek-ai/dsh-settings": "^0.2.2-rc.5",
+    "@deepseek-ai/dsh-system-prompt": "^0.2.2-rc.5",
+    "@deepseek-ai/dsh-tool-web": "^0.2.2-rc.5",
+    "@deepseek-ai/dsh-tools": "^0.2.2-rc.5",
+    "@deepseek-ai/dsh-web": "^0.2.2-rc.5",
+    "@types/node": "^24.0.0",
     "react": "^18.2.0",
     "react-dom": "^18.3.1",
     "typescript": "^5.9.0",
     "vitest": "^4.0.0"
   },
   "engines": {
-    "node": ">=22.19.0"
+    "node": ">=24.9.0",
+    "dsh": ">=0.2.2-rc.5 <0.3.0"
   }
 }

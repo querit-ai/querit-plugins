@@ -6,6 +6,7 @@ import {
   isTimeRange,
   normalizeDomains,
   type QueritClientLike,
+  type QueritOperationEvent,
   type QueritProviderOptions,
 } from "../src/provider.js";
 
@@ -14,13 +15,14 @@ function makeOptions(overrides: Partial<QueritProviderOptions> = {}): QueritProv
     apiKey: "sk-test-key",
     baseURL: "https://api.querit.ai",
     timeoutMs: 70_000,
-    count: 5,
     countries: [],
     languages: [],
     includeDomains: [],
     excludeDomains: [],
     includeContent: false,
-    chunksPerDoc: 1,
+    highlights: false,
+    needMarkdown: false,
+    resourceTags: [],
     fetchFormat: "markdown",
     fetchCrawlTimeout: 10,
     fetchMaxChars: 8_000,
@@ -34,6 +36,10 @@ function fakeClient(impl: Partial<QueritClientLike> = {}): QueritClientLike {
     contents: vi.fn(async () => ({ results: [], statuses: [] })),
     ...impl,
   };
+}
+
+function webCode(error: unknown): string | undefined {
+  return (error as { code?: string }).code;
 }
 
 describe("isTimeRange", () => {
@@ -67,23 +73,59 @@ describe("normalizeDomains", () => {
 
 describe("QueritSearchProvider", () => {
   it("reports availability from local facts only", () => {
-    const options = makeOptions();
-    expect(new QueritSearchProvider(() => options).available()).toBe(true);
+    expect(new QueritSearchProvider(() => makeOptions()).available()).toBe(true);
 
     expect(new QueritSearchProvider(() => makeOptions({ apiKey: undefined, resolveApiKey: async () => "k" })).available()).toBe(true);
     expect(new QueritSearchProvider(() => makeOptions({ apiKey: undefined })).available()).toBe(false);
     expect(new QueritSearchProvider(() => makeOptions({ baseURL: "not a url" })).available()).toBe(false);
     expect(new QueritSearchProvider(() => makeOptions({ timeRange: "yesterday" })).available()).toBe(false);
-    expect(new QueritSearchProvider(() => makeOptions({ count: 99 })).available()).toBe(false);
+    expect(new QueritSearchProvider(() => makeOptions({ count: 100 })).available()).toBe(true);
+    expect(new QueritSearchProvider(() => makeOptions({ count: 101 })).available()).toBe(false);
+    expect(new QueritSearchProvider(() => makeOptions({ count: undefined })).available()).toBe(true);
   });
 
-  it("maps results to sources and merges snippets with sentences", async () => {
+  it("names and describes itself for the provider picker", () => {
+    const provider = new QueritSearchProvider(() => makeOptions());
+    expect(provider.id).toBe("web-search-querit");
+    expect(provider.title).toBe("Querit");
+    expect(provider.description).toMatchObject({ en: expect.any(String), zh: expect.any(String) });
+  });
+
+  it("answers ready from configuration without touching the network", async () => {
+    const literal = new QueritSearchProvider(() => makeOptions());
+    expect(await literal.ready()).toBe(true);
+
+    const remote = new QueritSearchProvider(() => makeOptions({ apiKey: undefined, apiKeyConfigured: async () => true }));
+    expect(await remote.ready()).toBe(true);
+
+    const unconfigured = new QueritSearchProvider(() => makeOptions({ apiKey: undefined, apiKeyConfigured: async () => false }));
+    expect(await unconfigured.ready()).toBe(false);
+
+    const unreadable = new QueritSearchProvider(() => makeOptions({
+      apiKey: undefined,
+      apiKeyConfigured: async () => { throw new Error("store offline"); },
+    }));
+    expect(await unreadable.ready()).toBe(false);
+
+    const resolving = new QueritSearchProvider(() => makeOptions({ apiKey: undefined, resolveApiKey: async () => "k" }));
+    expect(await resolving.ready()).toBe(true);
+  });
+
+  it("keeps the snippet for display and puts highlights, then body text, in the model summary", async () => {
     const client = fakeClient({
       search: vi.fn(async () => ({
         query: "q",
         results: [
-          { title: "Page", url: "https://example.com/a", snippet: "intro", pageAge: "3d", sentences: ["fact one", "fact two"] },
-          { title: "No age", url: "https://example.com/b", snippet: " ", sentences: [] },
+          {
+            title: "Page",
+            url: "https://example.com/a",
+            snippet: "intro\n  with   spaces",
+            pageAge: "3d",
+            sentences: ["fact one", "fact two"],
+            highlights: ["the relevant bit"],
+          },
+          { title: "No age", url: "https://example.com/b", snippet: " ", sentences: [], highlights: [] },
+          { title: "Long", url: "https://example.com/c", snippet: "x".repeat(1_000), sentences: [], highlights: [] },
         ],
       })),
     });
@@ -94,74 +136,139 @@ describe("QueritSearchProvider", () => {
     const result = await provider.search({ query: "q" });
     expect(result.truncated).toBe(false);
     expect(result.content).toBeUndefined();
-    expect(result.sources).toHaveLength(2);
+    expect(result.sources).toHaveLength(3);
     expect(result.sources[0]).toEqual({
       url: "https://example.com/a",
       title: "Page",
-      snippet: "intro\n- fact one\n- fact two",
+      snippet: "intro with spaces",
+      summary: "the relevant bit\n- fact one\n- fact two",
       publishedAt: "3d",
     });
     expect(result.sources[1]).toEqual({ url: "https://example.com/b", title: "No age" });
+    expect(result.sources[2]?.snippet?.length).toBe(512);
+    expect(result.sources[2]?.summary).toBeUndefined();
   });
 
-  it("builds the request filters from the configured defaults", async () => {
+  it("prefers a Markdown body for the model summary", async () => {
     const client = fakeClient({
-      search: vi.fn(async () => ({ query: "q", results: [] })),
+      search: vi.fn(async () => ({
+        query: "q",
+        results: [{ title: "Page", url: "https://example.com/a", snippet: "plain", sentences: ["plain body"], highlights: [], contentMarkdown: "# Body" }],
+      })),
     });
+    const options = makeOptions();
+    options.clientFactory = () => client;
+
+    const result = await new QueritSearchProvider(() => options).search({ query: "q" });
+    expect(result.sources[0]).toMatchObject({ snippet: "plain", summary: "# Body" });
+  });
+
+  it("builds the request from the configured defaults", async () => {
+    const client = fakeClient({ search: vi.fn(async () => ({ query: "q", results: [] })) });
     const options = makeOptions({
       count: 5,
       timeRange: "m3",
       countries: ["united states"],
-      languages: ["english"],
+      languages: ["english", "russian"],
       includeDomains: ["github.com"],
       excludeDomains: ["pinterest.com", "facebook.com"],
       includeContent: true,
+      contentMaxChars: 1_500,
+      highlights: true,
+      needMarkdown: true,
       chunksPerDoc: 2,
+      rank: "freshness",
     });
     options.clientFactory = () => client;
-    const provider = new QueritSearchProvider(() => options);
 
-    await provider.search({ query: "rust 2024", maxResults: 8 });
+    await new QueritSearchProvider(() => options).search({ query: "rust 2024", maxResults: 8 });
     expect(client.search).toHaveBeenCalledWith({
       query: "rust 2024",
       count: 8,
       chunksPerDoc: 2,
+      highlights: true,
       needContent: true,
+      contentMaxChars: 1_500,
+      needMarkdown: true,
+      rank: { preference: "freshness" },
       filters: {
         sites: { include: ["github.com"], exclude: ["pinterest.com", "facebook.com"] },
         timeRange: { date: "m3" },
         geo: { countries: { include: ["united states"] } },
-        languages: { include: ["english"] },
+        languages: { include: ["english", "russian"] },
       },
     }, undefined);
   });
 
-  it("clamps the requested count to the API range and omits filters when empty", async () => {
-    const client = fakeClient({
-      search: vi.fn(async () => ({ query: "q", results: [] })),
-    });
-    const options = makeOptions({ count: 5 });
+  it("routes code searches to the vertical and drops the rank it rejects", async () => {
+    const client = fakeClient({ search: vi.fn(async () => ({ query: "q", results: [] })) });
+    const options = makeOptions({ vertical: "code", rank: "freshness", resourceTags: ["qa", "github"] });
+    options.clientFactory = () => client;
+
+    await new QueritSearchProvider(() => options).search({ query: "asyncio" });
+    expect(client.search).toHaveBeenCalledWith({
+      query: "asyncio",
+      needContent: false,
+      filters: { vertical: "code", resourceTags: { include: ["qa", "github"] } },
+    }, undefined);
+  });
+
+  it("keeps rank for the finance vertical", async () => {
+    const client = fakeClient({ search: vi.fn(async () => ({ query: "q", results: [] })) });
+    const options = makeOptions({ vertical: "finance", rank: "freshness" });
+    options.clientFactory = () => client;
+
+    await new QueritSearchProvider(() => options).search({ query: "rates" });
+    expect(client.search).toHaveBeenCalledWith({
+      query: "rates",
+      needContent: false,
+      rank: { preference: "freshness" },
+      filters: { vertical: "finance" },
+    }, undefined);
+  });
+
+  it("leaves count to Querit when nothing bounds it, and clamps a bound to the API range", async () => {
+    const client = fakeClient({ search: vi.fn(async () => ({ query: "q", results: [] })) });
+    const options = makeOptions();
     options.clientFactory = () => client;
     const provider = new QueritSearchProvider(() => options);
 
-    await provider.search({ query: "q", maxResults: 40 });
-    expect(client.search).toHaveBeenCalledWith({
-      query: "q",
-      count: 20,
-      chunksPerDoc: 1,
-      needContent: false,
-    }, undefined);
+    await provider.search({ query: "q" });
+    expect(client.search).toHaveBeenLastCalledWith({ query: "q", needContent: false }, undefined);
+
+    await provider.search({ query: "q", maxResults: 500 });
+    expect(client.search).toHaveBeenLastCalledWith({ query: "q", count: 100, needContent: false }, undefined);
+
+    await provider.search({ query: "q", maxResults: 0 });
+    expect(client.search).toHaveBeenLastCalledWith({ query: "q", count: 1, needContent: false }, undefined);
+  });
+
+  it("reports search_id, took, and cost once the operation completes", async () => {
+    const client = fakeClient({
+      search: vi.fn(async () => ({
+        query: "q",
+        results: [],
+        searchId: "9007199254740993123",
+        took: "0.42",
+        cost: { currency: "USD", total: 0.000001 },
+      })),
+    });
+    const events: QueritOperationEvent[] = [];
+    const options = makeOptions({ observe: (event) => events.push(event) });
+    options.clientFactory = () => client;
+
+    await new QueritSearchProvider(() => options).search({ query: "q" });
+
+    expect(events).toEqual([{ operation: "search", searchId: "9007199254740993123", took: "0.42", cost: "USD 0.000001" }]);
   });
 
   it("throws WEB_PROVIDER_CREDENTIAL_MISSING when no key resolves", async () => {
     const options = makeOptions({ apiKey: undefined, resolveApiKey: async () => undefined });
     const provider = new QueritSearchProvider(() => options);
 
-    await expect(provider.search({ query: "q" })).rejects.toSatisfy((error: unknown) => {
-      expect(error).toBeInstanceOf(Error);
-      expect((error as { code?: string }).code).toBe("WEB_PROVIDER_CREDENTIAL_MISSING");
-      return true;
-    });
+    const failure = await provider.search({ query: "q" }).catch((error: unknown) => error);
+    expect(webCode(failure)).toBe("WEB_PROVIDER_CREDENTIAL_MISSING");
+    expect((failure as Error).message).toContain("QUERIT_API_KEY");
   });
 
   it("throws WEB_ABORTED when the caller already aborted", async () => {
@@ -170,10 +277,8 @@ describe("QueritSearchProvider", () => {
     const controller = new AbortController();
     controller.abort();
 
-    await expect(provider.search({ query: "q" }, controller.signal)).rejects.toSatisfy((error: unknown) => {
-      expect((error as { code?: string }).code).toBe("WEB_ABORTED");
-      return true;
-    });
+    const failure = await provider.search({ query: "q" }, controller.signal).catch((error: unknown) => error);
+    expect(webCode(failure)).toBe("WEB_ABORTED");
   });
 
   it("maps client failures to WEB_PROVIDER_ERROR", async () => {
@@ -184,13 +289,10 @@ describe("QueritSearchProvider", () => {
     });
     const options = makeOptions();
     options.clientFactory = () => client;
-    const provider = new QueritSearchProvider(() => options);
 
-    await expect(provider.search({ query: "q" })).rejects.toSatisfy((error: unknown) => {
-      expect((error as { code?: string }).code).toBe("WEB_PROVIDER_ERROR");
-      expect((error as Error).message).toContain("Querit search failed");
-      return true;
-    });
+    const failure = await new QueritSearchProvider(() => options).search({ query: "q" }).catch((error: unknown) => error);
+    expect(webCode(failure)).toBe("WEB_PROVIDER_ERROR");
+    expect((failure as Error).message).toContain("Querit search failed");
   });
 
   it("maps AbortError client failures to WEB_ABORTED", async () => {
@@ -201,35 +303,39 @@ describe("QueritSearchProvider", () => {
     });
     const options = makeOptions();
     options.clientFactory = () => client;
-    const provider = new QueritSearchProvider(() => options);
 
-    await expect(provider.search({ query: "q" })).rejects.toSatisfy((error: unknown) => {
-      expect((error as { code?: string }).code).toBe("WEB_ABORTED");
-      return true;
-    });
+    const failure = await new QueritSearchProvider(() => options).search({ query: "q" }).catch((error: unknown) => error);
+    expect(webCode(failure)).toBe("WEB_ABORTED");
   });
 });
 
 describe("QueritFetchProvider", () => {
   it("reports availability from local facts only", () => {
-    const options = makeOptions();
-    expect(new QueritFetchProvider(() => options).available()).toBe(true);
+    const provider = new QueritFetchProvider(() => makeOptions());
+    expect(provider.available()).toBe(true);
     expect(new QueritFetchProvider(() => makeOptions({ fetchCrawlTimeout: 0 })).available()).toBe(false);
     expect(new QueritFetchProvider(() => makeOptions({ fetchMaxChars: 10 })).available()).toBe(false);
+  });
+
+  it("names itself like the search provider and answers ready the same way", async () => {
+    const provider = new QueritFetchProvider(() => makeOptions());
+    expect(provider.id).toBe("web-search-querit");
+    expect(provider.title).toBe("Querit");
+    expect(await provider.ready()).toBe(true);
+    expect(await new QueritFetchProvider(() => makeOptions({ apiKey: undefined })).ready()).toBe(false);
   });
 
   it("maps a successful markdown crawl to a 200 text body", async () => {
     const client = fakeClient({
       contents: vi.fn(async () => ({
-        results: [{ url: "https://example.com/a", content: "# Hello" }],
+        results: [{ url: "https://example.com/a", content: "# Hello", highlights: [] }],
         statuses: [{ status: "success" }],
       })),
     });
     const options = makeOptions({ fetchFormat: "markdown" });
     options.clientFactory = () => client;
-    const provider = new QueritFetchProvider(() => options);
 
-    const result = await provider.fetch({ url: "https://example.com/a" });
+    const result = await new QueritFetchProvider(() => options).fetch({ url: "https://example.com/a" });
     expect(client.contents).toHaveBeenCalledWith({
       urls: ["https://example.com/a"],
       format: "markdown",
@@ -247,15 +353,14 @@ describe("QueritFetchProvider", () => {
   it("labels html responses with the html body kind", async () => {
     const client = fakeClient({
       contents: vi.fn(async () => ({
-        results: [{ url: "https://example.com/a", content: "<p>hi</p>" }],
+        results: [{ url: "https://example.com/a", content: "<p>hi</p>", highlights: [] }],
         statuses: [{ status: "success" }],
       })),
     });
     const options = makeOptions({ fetchFormat: "html" });
     options.clientFactory = () => client;
-    const provider = new QueritFetchProvider(() => options);
 
-    const result = await provider.fetch({ url: "https://example.com/a" });
+    const result = await new QueritFetchProvider(() => options).fetch({ url: "https://example.com/a" });
     expect(result.body).toEqual({ kind: "html", content: "<p>hi</p>" });
   });
 
@@ -263,49 +368,55 @@ describe("QueritFetchProvider", () => {
     const long = "x".repeat(1_000);
     const client = fakeClient({
       contents: vi.fn(async () => ({
-        results: [{ url: "https://example.com/a", content: long }],
+        results: [{ url: "https://example.com/a", content: long, highlights: [] }],
         statuses: [{ status: "success" }],
       })),
     });
     const options = makeOptions({ fetchMaxChars: 256 });
     options.clientFactory = () => client;
-    const provider = new QueritFetchProvider(() => options);
 
-    const result = await provider.fetch({ url: "https://example.com/a" });
+    const result = await new QueritFetchProvider(() => options).fetch({ url: "https://example.com/a" });
     expect(result.truncated).toBe(true);
     expect((result.body as { content: string }).content.length).toBe(256);
     expect((result.body as { content: string }).content.endsWith("...")).toBe(true);
   });
 
-  it("throws WEB_PROVIDER_ERROR when the crawl fails", async () => {
+  it("reports the operation's search_id and cost", async () => {
     const client = fakeClient({
       contents: vi.fn(async () => ({
-        results: [],
-        statuses: [{ status: "failed" }],
+        results: [{ url: "https://example.com/a", content: "x", highlights: [] }],
+        statuses: [{ status: "success" }],
+        searchId: "7",
+        searchTime: 2,
+        cost: { currency: "USD", total: 0.002 },
       })),
+    });
+    const events: QueritOperationEvent[] = [];
+    const options = makeOptions({ observe: (event) => events.push(event) });
+    options.clientFactory = () => client;
+
+    await new QueritFetchProvider(() => options).fetch({ url: "https://example.com/a" });
+    expect(events).toEqual([{ operation: "fetch", searchId: "7", took: "2s", cost: "USD 0.002000" }]);
+  });
+
+  it("throws WEB_PROVIDER_ERROR when the crawl fails", async () => {
+    const client = fakeClient({
+      contents: vi.fn(async () => ({ results: [], statuses: [{ status: "failed" }] })),
     });
     const options = makeOptions();
     options.clientFactory = () => client;
-    const provider = new QueritFetchProvider(() => options);
 
-    await expect(provider.fetch({ url: "https://example.com/a" })).rejects.toSatisfy((error: unknown) => {
-      expect((error as { code?: string }).code).toBe("WEB_PROVIDER_ERROR");
-      expect((error as Error).message).toContain("failed");
-      return true;
-    });
+    const failure = await new QueritFetchProvider(() => options).fetch({ url: "https://example.com/a" }).catch((error: unknown) => error);
+    expect(webCode(failure)).toBe("WEB_PROVIDER_ERROR");
+    expect((failure as Error).message).toContain("failed");
   });
 
   it("throws WEB_PROVIDER_ERROR when nothing is returned", async () => {
-    const client = fakeClient({
-      contents: vi.fn(async () => ({ results: [], statuses: [] })),
-    });
+    const client = fakeClient({ contents: vi.fn(async () => ({ results: [], statuses: [] })) });
     const options = makeOptions();
     options.clientFactory = () => client;
-    const provider = new QueritFetchProvider(() => options);
 
-    await expect(provider.fetch({ url: "https://example.com/a" })).rejects.toSatisfy((error: unknown) => {
-      expect((error as { code?: string }).code).toBe("WEB_PROVIDER_ERROR");
-      return true;
-    });
+    const failure = await new QueritFetchProvider(() => options).fetch({ url: "https://example.com/a" }).catch((error: unknown) => error);
+    expect(webCode(failure)).toBe("WEB_PROVIDER_ERROR");
   });
 });

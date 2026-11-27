@@ -5,7 +5,7 @@
 // never printed.
 const { QueritSearchProvider, QueritFetchProvider, Config } = await import('dsh-querit')
 const { readFileSync } = await import('node:fs')
-const piConfig = process.env.USERPROFILE + '/.pi/agent/querit-search.json'
+const piConfig = (process.env.USERPROFILE ?? process.env.HOME ?? '') + '/.pi/agent/querit-search.json'
 let key = process.env.QUERIT_API_KEY?.trim()
 if (!key) {
   try {
@@ -25,23 +25,27 @@ const options = {
   includeDomains: [],
   excludeDomains: ['pinterest.com', 'facebook.com', 'instagram.com', 'tiktok.com'],
   includeContent: false,
-  chunksPerDoc: 1,
+  highlights: true,
+  needMarkdown: false,
+  resourceTags: [],
   fetchFormat: 'markdown',
   fetchCrawlTimeout: 10,
   fetchMaxChars: 8000,
+  observe: (event) => console.log(`[querit] ${event.operation} search_id=${event.searchId ?? 'n/a'} took=${event.took ?? 'n/a'} cost=${event.cost ?? 'n/a'}`),
 }
 const search = new QueritSearchProvider(() => options)
-console.log('search provider available:', search.available())
+console.log('search provider available:', search.available(), '| ready:', await search.ready())
 const r = await search.search({ query: 'deepseek harness coding agent', maxResults: 3 })
 console.log('search sources:', r.sources.length, '| truncated:', r.truncated, '| content:', r.content)
 for (const s of r.sources.slice(0, 3)) {
   console.log('  - title:', s.title)
   console.log('    url:', s.url)
-  console.log('    snippet chars:', (s.snippet || '').length, '| publishedAt:', s.publishedAt)
+  console.log('    snippet chars:', (s.snippet || '').length, '| summary chars:', (s.summary || '').length, '| publishedAt:', s.publishedAt)
 }
 const fetchp = new QueritFetchProvider(() => options)
 const f = await fetchp.fetch({ url: 'https://en.wikipedia.org/wiki/Web_search_engine' })
 console.log('fetch:', f.statusCode, '| kind:', f.body.kind, '| chars:', f.body.content.length, '| truncated:', f.truncated)
 console.log('fetch head:', f.body.content.slice(0, 60).replace(/\n/g, ' '))
-const rowConfig = Config({ apiKeyEnv: 'QUERIT_API_KEY', count: 10, chunksPerDoc: 1, timeRange: 'y1', excludeDomains: ['pinterest.com', 'facebook.com', 'instagram.com', 'tiktok.com'] })
-console.log('profile row config validates; fetch tool flag:', rowConfig.fetch, '| timeoutMs:', rowConfig.fetchTimeoutMs)
+// Every field resolves to a volatile handle; read the ones this check names.
+const rowConfig = Config({ apiKeyEnv: 'QUERIT_API_KEY', count: 10, timeRange: 'y1', excludeDomains: ['pinterest.com', 'facebook.com', 'instagram.com', 'tiktok.com'] })
+console.log('profile row config validates; count:', rowConfig.count.get(), '| fetch tool flag:', rowConfig.fetch.get(), '| timeoutMs:', rowConfig.fetchTimeoutMs.get())
