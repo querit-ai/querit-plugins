@@ -2,14 +2,14 @@
 
 Official [Querit](https://www.querit.ai) search integrations for automation and AI agent platforms.
 
-[Querit](https://www.querit.ai) delivers real-time, authoritative web search results and clean page content for LLM applications. Each integration in this repository connects one platform to the Querit API (`/v1/search` + `/v1/contents`) for live web search and page fetching — with cited sources, domain/region/language/time-range filters, and output that is always treated as untrusted web data. The magpie plugin, which lives in its own repository ([`querit-ai/magpie-querit`](https://github.com/querit-ai/magpie-querit)), covers search only, because magpie's plugin hook has no page-fetching side.
+[Querit](https://www.querit.ai) delivers real-time, authoritative web search results and clean page content for LLM applications. Each integration in this repository connects one platform to the Querit API (`/v1/search` + `/v1/contents`) for live web search and page fetching — with cited sources, domain/region/language/time-range filters, and output that is always treated as untrusted web data. magpie has no plugin of its own here: Querit is one of the search APIs of the third-party [`@guotree/magpie-websearch`](https://github.com/guotree/magpie-websearch), which covers search only because magpie's plugin hook has no page-fetching side.
 
 | Platform | Package | Install |
 | --- | --- | --- |
 | [Pi](https://github.com/earendil-works/pi) | `pi-querit` | `pi install npm:pi-querit` |
 | [DeepSeek Harness](https://www.npmjs.com/package/@deepseek-ai/cordis) | `dsh-querit` | `dsh plugin --profile web add dsh-querit` |
 | [OpenCode](https://opencode.ai) | `opencode-querit` | `"plugins": ["opencode-querit"]` |
-| [magpie](https://github.com/yetone/magpie) | [`magpie-querit`](https://github.com/querit-ai/magpie-querit) (own repository) | `magpie plugin add github:querit-ai/magpie-querit` |
+| [magpie](https://github.com/yetone/magpie) | [`@guotree/magpie-websearch`](https://github.com/guotree/magpie-websearch) (third-party) | `magpie plugin add @guotree/magpie-websearch` |
 | [Claude Code](https://code.claude.com/docs/en/plugins) | `claude-code-querit` | `/plugin marketplace add querit-ai/querit-plugins` |
 
 Four more are not generally available yet — three live in this repository, and the Oh My Pi provider is an upstream change rather than a package here:
@@ -21,7 +21,7 @@ Four more are not generally available yet — three live in this repository, and
 | [n8n](https://n8n.io) | `n8n-nodes-querit/` | Temporarily not integrated: version 0.1.1 is on npm, but it predates the current Querit API and was not part of the 2026-11-27 update |
 | [Oh My Pi (OMP)](https://omp.sh) | — | Built-in Querit provider from an upstream change; available after that PR is merged |
 
-How each integration reads the API key and search defaults is covered in its own section below; the magpie section covers a plugin that lives outside this repository. Recent updates are summarized in [CHANGES.md](./CHANGES.md).
+How each integration reads the API key and search defaults is covered in its own section below; the magpie section covers a third-party plugin. Recent updates are summarized in [CHANGES.md](./CHANGES.md).
 
 ## Get an API key
 
@@ -112,26 +112,38 @@ Search defaults and fetch behavior are configured the same way (`count`, `timeRa
 
 See the [opencode-querit README](./opencode-querit/README.md) for the full config table and local-testing instructions.
 
-## magpie-querit — magpie
+## magpie — magpie-websearch
 
-A [magpie](https://github.com/yetone/magpie) plugin that adds Querit to magpie's own web search: **Settings › Models › Web search** lists a "Querit" API beside Tavily, Brave, and Exa. magpie keeps the API keys, the order of the APIs, and the request log, and every agent it serves gets results through its built-in `web_search`.
-
-It lives in its own repository, [`querit-ai/magpie-querit`](https://github.com/querit-ai/magpie-querit), not in this one: magpie reads a GitHub plugin from the root of its repository (its `package.json` has to be there) and installs it as `github:owner/repo`, so a subdirectory of a multi-package repository can be neither listed nor installed. That repository is tagged `magpie-plugin`, which puts it on magpie's **Plugins → Discover → Unofficial, on GitHub** list.
+Querit comes to [magpie](https://github.com/yetone/magpie) through [`@guotree/magpie-websearch`](https://github.com/guotree/magpie-websearch), a third-party plugin that adds many search APIs to magpie's own web search, Querit among them. **Settings › Models › Web search** lists "Querit (magpie-websearch)" beside its other APIs: magpie keeps the API keys, the order of the APIs, and the request log, and every agent it serves gets the results through its built-in `web_search`. The plugin is MIT-licensed and maintained by its author, not by Querit; report problems with it in its own repository.
 
 **Install**
 
 ```bash
-magpie plugin add github:querit-ai/magpie-querit
-magpie search add magpie-querit:querit <your-api-key>
+magpie plugin add @guotree/magpie-websearch
+magpie search add magpie-websearch:querit <your-api-key>
 ```
 
-Requires magpie v0.1.2887 or newer. magpie hands a plugin only the query, a result count, and the key, so site, country, and language filters cannot be chosen per search; the plugin's options (`timeRange`, `vertical`, `highlights`) apply to every search:
+In the app: **Settings › Models › Web search** → add Querit, paste the key, and drag it to where it belongs in the order.
+
+The plugin registers all of its search APIs at once. To register only Querit:
 
 ```bash
-magpie plugin options magpie-querit '{"timeRange": "d7"}'
+magpie plugin options magpie-websearch '{"enable": ["querit"]}'
 ```
 
-magpie's `web_fetch` is not pluggable, so page fetching stays with magpie. See the [magpie-querit README](https://github.com/querit-ai/magpie-querit#readme).
+**What its Querit API does** (as of `@guotree/magpie-websearch` 0.7.3)
+
+- Each search is one `POST https://api.querit.ai/v1/search` with the query and magpie's result count (1–20). Results become pages with their title, URL, snippet, and age.
+- Results are cached for ten minutes, and a cached answer costs no API call. For "latest" questions turn that off, together with `enable` if you use it:
+
+  ```bash
+  magpie plugin options magpie-websearch '{"enable": ["querit"], "querit": {"cacheTTL": 0}}'
+  ```
+
+- It sends nothing but the query and the count, so Querit's time range, vertical, highlights, and body text cannot be asked for through it; those need the Querit API itself.
+- Querit is billed per search.
+
+The plugin adds search APIs only, with no page-fetching channel of its own, so page fetching stays with magpie. See the [magpie-websearch README](https://github.com/guotree/magpie-websearch/blob/main/README.en.md) for every option.
 
 ## claude-code-querit — Claude Code
 

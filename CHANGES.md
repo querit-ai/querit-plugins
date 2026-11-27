@@ -5,21 +5,18 @@ package is its git log.
 
 ## 2026-11-27
 
-- **magpie-querit 1.0.0** — new. Adds Querit to
-  [magpie](https://github.com/yetone/magpie)'s own web search through the
-  plugin `search` hook that magpie v0.1.2887 introduced, so "Querit" is
-  listed in **Settings › Models › Web search** beside Tavily, Brave, and Exa
-  and magpie keeps the keys, the order of the APIs, and the request log.
-  It lives in its own repository,
-  [querit-ai/magpie-querit](https://github.com/querit-ai/magpie-querit),
-  because magpie reads a GitHub plugin from the root of its repository.
-  Install with `magpie plugin add github:querit-ai/magpie-querit` and give
-  it a key with `magpie search add magpie-querit:querit <key>`. magpie
-  hands a plugin only a query, a count, and a key, so the plugin's options
-  (`timeRange`, `vertical`, `highlights`) apply to every search; magpie's
-  `web_fetch` is not pluggable and stays with magpie. A key Querit refuses
-  (401, 402, 403, 429) is reported the way magpie rests a key; any other
-  failure makes magpie ask its next search API.
+- **magpie** — no plugin of our own after all. A `magpie-querit` plugin
+  (1.0.0, built on magpie's plugin `search` hook and published to a GitHub
+  repository of its own) was written and then withdrawn the same day:
+  Querit is already one of the search APIs of the third-party
+  [`@guotree/magpie-websearch`](https://github.com/guotree/magpie-websearch)
+  (`magpie-websearch:querit`), which lists "Querit" in
+  **Settings › Models › Web search** beside its other APIs. The README now
+  points magpie users there — `magpie plugin add @guotree/magpie-websearch`,
+  then `magpie search add magpie-websearch:querit <key>` — and says what
+  that channel sends: the query and magpie's result count only, with
+  results cached for ten minutes by default. The withdrawn plugin's source
+  stays at the tag `magpie-querit@1.0.0`.
 - **dsh-querit 2.0.0** — moved to the dsh 0.2.2-rc.5 host seams. `engines.dsh`
   is now `>=0.2.2-rc.5 <0.3.0`, Node.js 24.9 is required as the host
   requires it, and dsh 0.1.x hosts should pin `dsh-querit@1.1.2`. The

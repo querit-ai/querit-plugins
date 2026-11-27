@@ -32,8 +32,7 @@ pattern from `dsh-querit-publish.yml` / `opencode-querit-publish.yml` /
 Plugins with a different distribution channel get that channel's automation
 instead of an npm workflow: `claude-code-querit` ships via the Claude Code
 marketplace catalog, `zapier-querit` via `zapier push` (Zapier review, not
-npm), `magpie-querit` from its own GitHub repository (see Discoverability),
-and `browserbase-querit-demo` is an unpublished demo.
+npm), and `browserbase-querit-demo` is an unpublished demo.
 
 ## Querit API: the official reference is the source of truth
 
@@ -50,27 +49,26 @@ when nothing chose it, so Querit applies its own defaults (above all
 `count`). Do not send a parameter the reference deprecates (`chunksPerDoc`)
 unless a configuration already sets it. Keep the clients in step: a rule
 adopted in one package belongs in all of them (pi-querit, dsh-querit,
-opencode-querit, claude-code-querit, and zapier-querit here, plus
-magpie-querit in its own repository).
+opencode-querit, claude-code-querit, and zapier-querit).
 
 ## Host versions: target the current host
 
-Each plugin tracks the current release line of its host (Pi, dsh, OpenCode,
-magpie), not older ones. When a host release changes a seam, move the plugin
-to it, raise the host requirement in the README and in the peer or `engines`
+Each plugin tracks the current release line of its host (Pi, dsh, OpenCode),
+not older ones. When a host release changes a seam, move the plugin to it,
+raise the host requirement in the README and in the peer or `engines`
 range, and bump the plugin's major version when the change breaks older
 hosts. Do not keep compatibility shims for superseded host versions.
 
-## Discoverability
+## magpie
 
-`magpie-querit` is installed from GitHub, not npm, and is found through
-the `magpie-plugin` GitHub topic. magpie reads a GitHub plugin from the
-root of its repository — its docs say "Keep package.json at the
-repository's root" — and installs `github:owner/repo`, with no notion of a
-subdirectory. A plugin inside this multi-package repository can therefore
-be neither listed on magpie's Plugins page nor installed, so
-`magpie-querit` lives in its own repository,
-`querit-ai/magpie-querit`, with `package.json` at its root and that
-topic on it. Make changes to it there, and refer to it from here
-(README, CHANGES.md) rather than copying its source back into this
-repository or tagging this one `magpie-plugin`.
+There is no Querit-made magpie plugin. Querit is already one of the search
+APIs of the third-party `@guotree/magpie-websearch`
+(`magpie-websearch:querit`), and the README points magpie users there with
+the install commands and what that channel sends. A `magpie-querit` plugin
+was written on 2026-11-27 and withdrawn the same day once that was found;
+its source stays at the tag `magpie-querit@1.0.0` should the user ask for
+it again. If it is revived, it goes in a repository of its own: magpie
+reads a GitHub plugin from the root of its repository (its docs say "Keep
+package.json at the repository's root") and installs `github:owner/repo`,
+so a subdirectory of this multi-package repository can be neither listed
+nor installed, and a `magpie-plugin` topic on this repository does nothing.
