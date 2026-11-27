@@ -2,7 +2,7 @@
   "$schema": "https://json.schemastore.org/claude-code-plugin-manifest.json",
   "name": "querit-ai",
   "displayName": "Querit Web Research",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "description": "Live web search, clean page retrieval, and citation-focused research for Claude Code.",
   "author": {
     "name": "QUERIT PRIVATE LIMITED",

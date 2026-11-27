@@ -7,7 +7,7 @@ A production-oriented [Claude Code](https://code.claude.com/docs/en/plugins) plu
 - `web_search` for live web search with source URLs
 - `fetch_content` for clean full-page text, Markdown, or HTML
 
-It also includes one focused `/querit:research` skill for source-grounded research and citations. The plugin calls `POST https://api.querit.ai/v1/search` and `/v1/contents` through a bundled stdio MCP server.
+It also includes one focused `/querit-ai:research` skill for source-grounded research and citations. The plugin calls `POST https://api.querit.ai/v1/search` and `/v1/contents` through a bundled stdio MCP server.
 
 Sign up at [Querit.ai](https://www.querit.ai) to get an API key with **1,000 free API calls per month**. No credit card is required.
 
@@ -49,7 +49,7 @@ Then use `/mcp` to confirm that the plugin-provided `querit` server is connected
 
 ### API key
 
-The server reads the key from the `QUERIT_API_KEY` environment variable on every tool call. Claude Code spawns the MCP server as a child process, so the variable set in the environment that launches Claude Code is inherited — set it at user or machine scope (on Windows, `setx QUERIT_API_KEY <key>` and open a new terminal) or export it from your shell profile.
+The server reads the key from the `QUERIT_API_KEY` environment variable on every tool call. It is the plugin's only configuration. Every `web_search` option beyond the query — `count`, highlights, body text, ranking, vertical — is a per-call parameter with no stored default; `fetch_content` falls back to `format: markdown`, `crawl_timeout: 10`, and `include_metadata: true`. Claude Code spawns the MCP server as a child process, so the variable set in the environment that launches Claude Code is inherited — set it at user or machine scope (on Windows, `setx QUERIT_API_KEY <key>` and open a new terminal) or export it from your shell profile.
 
 There is deliberately no in-product `userConfig` option: one environment variable keeps local development, CI, and UI installs on a single code path, and nothing credential-shaped is written into plugin settings.
 
@@ -64,9 +64,21 @@ Claude Code scopes plugin MCP names internally, but Claude can select these tool
 | Parameter | Required | Description |
 |---|---:|---|
 | `query` | yes | Search query, 1–1,000 characters |
-| `count` | no | Maximum results, 1–20; default `5` |
+| `count` | no | Maximum results, 1–100. Omit to use Querit's own default count |
+| `highlights` | no | Return query-focused fragments of each result's body text (default `false`). Also enabled by `highlight_query` or `highlight_max_chars` |
+| `highlight_query` | no | What the highlights focus on, 1–1,000 characters; defaults to the search query |
+| `highlight_max_chars` | no | Upper bound on highlighted characters, 100–8,000 |
+| `need_content` | no | Include each result's body text as content excerpts (default `false`) |
+| `max_chars` | no | Limit the body text per result, in Unicode code points, 1–1,000,000. Requires `need_content`; omit for the full body |
+| `need_markdown` | no | Request Markdown versions of the snippet and body text (default `false`). Enterprise plans only; Querit ignores it on other plans |
+| `rank` | no | `relevance` or `freshness`: a boost on top of Querit's ranking, not a sort |
+| `vertical` | no | `code` or `finance`. Omit for universal search; a mismatched vertical loses results |
 
-Results include titles, normalized HTTP(S) URLs, snippets, dates/site names when available, and optional server identifiers. Duplicate and non-HTTP(S) results are dropped.
+Optional request fields are sent only when asked for, so Querit's own defaults apply. The plugin never sends `count` unless one is given and no longer sends the deprecated `chunksPerDoc`; `highlights` is its replacement.
+
+Querit rejects `rank` together with `vertical: "code"` (HTTP 400), so the plugin withholds `rank` for that vertical and says so in the output.
+
+Results include titles, normalized HTTP(S) URLs, snippets, site names, the page time as Querit reports it in UTC, and the highlights, body excerpts, or Markdown that were requested. Duplicate and non-HTTP(S) results are dropped. The header carries the search ID, and the cost at six decimals when Querit reports one; a missing cost means unavailable, not free.
 
 ### `fetch_content`
 
@@ -76,6 +88,11 @@ Results include titles, normalized HTTP(S) URLs, snippets, dates/site names when
 | `format` | no | `text`, `markdown`, or `html`; default `markdown` |
 | `crawl_timeout` | no | Per-page crawl timeout in seconds, 1–60; default `10` |
 | `include_metadata` | no | Include title/publication metadata; default `true` |
+| `max_chars` | no | Limit each page's content to at most this many characters, 1–1,000,000, applied by Querit per URL. Omit for the full page |
+| `highlight_query` | no | Return the passages of each page that are relevant to this query, 1–1,000 characters |
+| `highlight_max_chars` | no | Upper bound on highlighted characters per URL, 100–8,000 |
+
+Highlights are requested only when `highlight_query` or `highlight_max_chars` is present. Without `max_chars` the plugin requests the full page and truncates its own output at 8,000 characters per page, with a marker; with `max_chars`, Querit enforces the limit and the plugin applies no per-page cap of its own.
 
 A call accepts at most 10 unique URLs. URLs with embedded credentials or non-HTTP(S) schemes are rejected before any API request.
 
@@ -84,7 +101,7 @@ A call accepts at most 10 unique URLs. URLs with embedded credentials or non-HTT
 Invoke the focused research workflow directly:
 
 ```text
-/querit:research recent changes to the Node.js permission model
+/querit-ai:research recent changes to the Node.js permission model
 ```
 
 Claude can also load it automatically when a request needs current facts, authoritative sources, verification, or citations. The skill instructs Claude to prefer primary sources, fetch pages when snippets are insufficient, cross-check consequential claims, distinguish inference from sourced facts, and cite returned URLs.
@@ -97,9 +114,11 @@ The MCP server also:
 
 - strips ANSI/terminal control sequences, control strings, unsafe C0/C1 controls, and bidirectional text controls;
 - redacts the active API key from HTTP, parse, network, and handler error surfaces;
+- takes Querit's `error_code` as the verdict of a request, checking it even on an HTTP 200, and ends every failure message with the request's `search_id` when Querit supplied one, so support can trace the request;
+- retries only 429, 500, and 503, by that `error_code`: at most twice, with exponential backoff and jitter (500 ms base, 5 s ceiling), honoring `Retry-After` (delay-seconds or HTTP-date) up to that ceiling. A longer `Retry-After` fails the call instead of blocking, and 400, 401, 403, and 404 are never retried;
 - limits API responses to 2 MiB for search, 10 MiB for contents, and 8 KiB for error bodies;
-- caps each fetched page at 8,000 characters and each rendered tool result at 200,000 characters;
-- applies a 70-second API request timeout and a 90-second Claude Code MCP tool timeout;
+- caps each fetched page at 8,000 characters unless `max_chars` is given, and each rendered tool result at 200,000 characters;
+- applies one 70-second API deadline per tool call, retries and backoff waits included, under a 90-second Claude Code MCP tool timeout;
 - deduplicates response URLs and accepts only credential-free HTTP(S) URLs.
 
 These controls reduce risk and output size, but they do not make web content trusted. Review sources before relying on high-impact claims.
@@ -134,7 +153,7 @@ npm run pack
 
 `npm run verify` is the full chain: `check`, `build`, tests, and `verify:plugin`. Run the steps individually while iterating. The bundle test copies `plugin/dist/server.js` outside the package and performs an MCP stdio handshake, which catches accidental unbundled runtime imports.
 
-`npm run pack` inspects the tarball with `--ignore-scripts`, so it deliberately skips the `prepack` hook and does not re-verify. A real `npm publish` runs `prepack`, and therefore the full chain, first.
+`npm run pack` runs `npm pack --dry-run --ignore-scripts`, which only lists the tarball. npm runs the `prepack` script before any script named `pack`, so the full chain runs first; `--ignore-scripts` keeps the dry-run `npm pack` itself from running lifecycle scripts again. A real `npm publish` runs the same `prepack` chain.
 
 Run the paid, networked smoke test only when explicitly enabled:
 
@@ -153,7 +172,7 @@ claude plugin validate ./claude-code-querit/plugin --strict
 claude --plugin-dir ./claude-code-querit/plugin
 ```
 
-Inside the session, inspect `/mcp`, invoke `/querit:research`, and exercise both tools. The automated structure checks remain useful in environments where the Claude CLI is unavailable, but they are not a substitute for Claude Code's own validator.
+Inside the session, inspect `/mcp`, invoke `/querit-ai:research`, and exercise both tools. The automated structure checks remain useful in environments where the Claude CLI is unavailable, but they are not a substitute for Claude Code's own validator.
 
 ## License
 

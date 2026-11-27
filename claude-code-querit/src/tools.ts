@@ -1,36 +1,53 @@
 import type { CallToolResult } from "@modelcontextprotocol/sdk/types.js";
 import {
+  QUERIT_CONTENT_MAX_CHARS_LIMIT,
+  QUERIT_COUNT_LIMIT,
+  QUERIT_HIGHLIGHT_MAX_CHARACTERS,
+  QUERIT_HIGHLIGHT_MIN_CHARACTERS,
   QueritClient,
+  RANK_VALUES,
+  VERTICAL_VALUES,
   type QueritClientOptions,
   type QueritContentsRequest,
   type QueritContentsResponse,
+  type QueritHighlights,
+  type QueritRankPreference,
   type QueritSearchRequest,
   type QueritSearchResponse,
+  type QueritVertical,
 } from "./client.js";
 import { missingApiKeyMessage, resolveQueritApiKey } from "./config.js";
 import { capOutput, formatContentsResponse, formatSearchResponse, safeSlice } from "./format.js";
 import { safeErrorMessage } from "./sanitize.js";
 
-export const DEFAULT_SEARCH_COUNT = 5;
-export const DEFAULT_FETCH_FORMAT = "markdown";
-export const DEFAULT_FETCH_CRAWL_TIMEOUT = 10;
+const DEFAULT_FETCH_FORMAT = "markdown";
+const DEFAULT_FETCH_CRAWL_TIMEOUT = 10;
 export const MAX_PAGE_CONTENT_CHARS = 8_000;
-export const MAX_TOOL_OUTPUT_CHARS = 200_000;
+const MAX_TOOL_OUTPUT_CHARS = 200_000;
 
 const PAGE_TRUNCATION_MARKER = "\n[Page content truncated by the Querit plugin.]";
-
-export type ContentFormat = "text" | "markdown" | "html";
 
 export interface WebSearchInput {
   query: string;
   count?: number | undefined;
+  highlights?: boolean | undefined;
+  highlight_query?: string | undefined;
+  highlight_max_chars?: number | undefined;
+  need_content?: boolean | undefined;
+  max_chars?: number | undefined;
+  need_markdown?: boolean | undefined;
+  rank?: QueritRankPreference | undefined;
+  vertical?: QueritVertical | undefined;
 }
 
 export interface FetchContentInput {
   urls: string[];
-  format?: ContentFormat | undefined;
+  format?: QueritContentsRequest["format"] | undefined;
   crawl_timeout?: number | undefined;
   include_metadata?: boolean | undefined;
+  max_chars?: number | undefined;
+  highlight_query?: string | undefined;
+  highlight_max_chars?: number | undefined;
 }
 
 export interface QueritClientLike {
@@ -43,7 +60,7 @@ export interface QueritToolOptions {
   clientFactory?: ((options: QueritClientOptions) => QueritClientLike) | undefined;
 }
 
-export interface QueritToolHandlers {
+interface QueritToolHandlers {
   webSearch(input: WebSearchInput, signal?: AbortSignal): Promise<CallToolResult>;
   fetchContent(input: FetchContentInput, signal?: AbortSignal): Promise<CallToolResult>;
 }
@@ -57,11 +74,11 @@ export function createToolHandlers(options: QueritToolOptions = {}): QueritToolH
       let apiKey: string | undefined;
       try {
         apiKey = requireApiKey(env);
-        const query = normalizeQuery(input.query);
-        const count = normalizeCount(input.count);
+        const search = normalizeSearchInput(input);
         const client = clientFactory({ apiKey });
-        const response = await client.search(buildSearchRequest(query, count), signal);
-        return textResult(capOutput(formatSearchResponse(response), MAX_TOOL_OUTPUT_CHARS));
+        const response = await client.search(buildSearchRequest(search), signal);
+        const rankDropped = search.rank !== undefined && !acceptsRank(search.vertical);
+        return textResult(capOutput(formatSearchResponse(response, { rankDropped }), MAX_TOOL_OUTPUT_CHARS));
       } catch (error) {
         return errorResult(error, apiKey);
       }
@@ -74,14 +91,22 @@ export function createToolHandlers(options: QueritToolOptions = {}): QueritToolH
         const urls = normalizeRequestedUrls(input.urls);
         const format = normalizeFormat(input.format);
         const crawlTimeout = normalizeCrawlTimeout(input.crawl_timeout);
+        const maxChars = normalizeContentMaxChars(input.max_chars);
+        const highlights = buildHighlights(
+          normalizeHighlightQuery(input.highlight_query),
+          normalizeHighlightMaxChars(input.highlight_max_chars),
+        );
         const client = clientFactory({ apiKey });
         const response = await client.contents({
           urls,
           format,
           crawlTimeout,
           extrasMeta: input.include_metadata ?? true,
+          ...(maxChars === undefined ? {} : { contentMaxChars: maxChars }),
+          ...(highlights ? { highlights } : {}),
         }, signal);
-        const limited = capPerPage(response, MAX_PAGE_CONTENT_CHARS);
+        // Querit enforces an explicit max_chars per URL; without one the plugin caps each page itself.
+        const limited = maxChars === undefined ? capPerPage(response, MAX_PAGE_CONTENT_CHARS) : response;
         return textResult(capOutput(
           formatContentsResponse(limited, urls, format),
           MAX_TOOL_OUTPUT_CHARS,
@@ -93,13 +118,42 @@ export function createToolHandlers(options: QueritToolOptions = {}): QueritToolH
   };
 }
 
-export function buildSearchRequest(query: string, count = DEFAULT_SEARCH_COUNT): QueritSearchRequest {
+/**
+ * Assembles POST /v1/search. Every optional field is omitted unless asked for, so Querit's
+ * own defaults (result count, body text, ranking) apply.
+ */
+export function buildSearchRequest(input: WebSearchInput): QueritSearchRequest {
+  const wantsHighlights = input.highlights === true
+    || input.highlight_query !== undefined
+    || input.highlight_max_chars !== undefined;
+
   return {
-    query,
-    count,
-    chunksPerDoc: 1,
-    needContent: false,
+    query: input.query,
+    ...(input.count === undefined ? {} : { count: input.count }),
+    // The highlights focus on the search query unless another highlight_query is given.
+    ...(wantsHighlights
+      ? { highlights: buildHighlights(input.highlight_query || input.query, input.highlight_max_chars) }
+      : {}),
+    ...(input.need_content ? { needContent: true } : {}),
+    ...(input.need_content && input.max_chars !== undefined ? { contentMaxChars: input.max_chars } : {}),
+    ...(input.need_markdown ? { needMarkdown: true } : {}),
+    ...(input.rank && acceptsRank(input.vertical) ? { rank: { preference: input.rank } } : {}),
+    ...(input.vertical ? { filters: { vertical: input.vertical } } : {}),
   };
+}
+
+/** Assembles the optional `highlights` object from whichever refinement was provided. */
+function buildHighlights(query: string | undefined, maxCharacters: number | undefined): QueritHighlights | undefined {
+  if (query === undefined && maxCharacters === undefined) return undefined;
+  return {
+    ...(query === undefined ? {} : { query }),
+    ...(maxCharacters === undefined ? {} : { maxCharacters }),
+  };
+}
+
+/** Querit answers 400 when `rank` is combined with the code vertical, so it is withheld there. */
+function acceptsRank(vertical: QueritVertical | undefined): boolean {
+  return vertical !== "code";
 }
 
 /** Validate and normalize HTTP(S) URLs, rejecting credentials and overlarge batches. */
@@ -145,6 +199,32 @@ export function capPerPage(response: QueritContentsResponse, maxChars: number): 
   };
 }
 
+function normalizeSearchInput(input: WebSearchInput): WebSearchInput {
+  const query = normalizeQuery(input.query);
+  const count = normalizeCount(input.count);
+  const highlights = normalizeBoolean(input.highlights, "highlights");
+  const highlightQuery = normalizeHighlightQuery(input.highlight_query);
+  const highlightMaxChars = normalizeHighlightMaxChars(input.highlight_max_chars);
+  const needContent = normalizeBoolean(input.need_content, "need_content");
+  const maxChars = normalizeContentMaxChars(input.max_chars);
+  if (maxChars !== undefined && !needContent) {
+    throw new Error("max_chars limits the body text, so it requires need_content: true.");
+  }
+
+  return {
+    query,
+    count,
+    highlights,
+    highlight_query: highlightQuery,
+    highlight_max_chars: highlightMaxChars,
+    need_content: needContent,
+    max_chars: maxChars,
+    need_markdown: normalizeBoolean(input.need_markdown, "need_markdown"),
+    rank: normalizeEnum(input.rank, RANK_VALUES, "rank"),
+    vertical: normalizeEnum(input.vertical, VERTICAL_VALUES, "vertical"),
+  };
+}
+
 function normalizeQuery(value: string): string {
   const query = value.trim();
   if (!query) throw new Error("Search query cannot be empty.");
@@ -152,15 +232,16 @@ function normalizeQuery(value: string): string {
   return query;
 }
 
-function normalizeCount(value: number | undefined): number {
-  const count = value ?? DEFAULT_SEARCH_COUNT;
-  if (!Number.isInteger(count) || count < 1 || count > 20) {
-    throw new Error("count must be an integer between 1 and 20.");
+/** An omitted count is left out so Querit applies its own default. */
+function normalizeCount(value: number | undefined): number | undefined {
+  if (value === undefined) return undefined;
+  if (!Number.isInteger(value) || value < 1 || value > QUERIT_COUNT_LIMIT) {
+    throw new Error(`count must be an integer between 1 and ${QUERIT_COUNT_LIMIT}.`);
   }
-  return count;
+  return value;
 }
 
-function normalizeFormat(value: ContentFormat | undefined): ContentFormat {
+function normalizeFormat(value: QueritContentsRequest["format"] | undefined): QueritContentsRequest["format"] {
   const format = value ?? DEFAULT_FETCH_FORMAT;
   if (format !== "text" && format !== "markdown" && format !== "html") {
     throw new Error("format must be one of: text, markdown, html.");
@@ -174,6 +255,46 @@ function normalizeCrawlTimeout(value: number | undefined): number {
     throw new Error("crawl_timeout must be an integer between 1 and 60 seconds.");
   }
   return timeout;
+}
+
+function normalizeBoolean(value: boolean | undefined, name: string): boolean | undefined {
+  if (value === undefined) return undefined;
+  if (typeof value !== "boolean") throw new Error(`${name} must be a boolean.`);
+  return value;
+}
+
+function normalizeContentMaxChars(value: number | undefined): number | undefined {
+  if (value === undefined) return undefined;
+  if (!Number.isInteger(value) || value < 1 || value > QUERIT_CONTENT_MAX_CHARS_LIMIT) {
+    throw new Error(`max_chars must be an integer between 1 and ${QUERIT_CONTENT_MAX_CHARS_LIMIT}.`);
+  }
+  return value;
+}
+
+function normalizeHighlightQuery(value: string | undefined): string | undefined {
+  if (value === undefined) return undefined;
+  const query = value.trim();
+  if (!query) throw new Error("highlight_query cannot be empty.");
+  if (query.length > 1_000) throw new Error("highlight_query must be at most 1000 characters.");
+  return query;
+}
+
+function normalizeHighlightMaxChars(value: number | undefined): number | undefined {
+  if (value === undefined) return undefined;
+  if (!Number.isInteger(value) || value < QUERIT_HIGHLIGHT_MIN_CHARACTERS || value > QUERIT_HIGHLIGHT_MAX_CHARACTERS) {
+    throw new Error(
+      `highlight_max_chars must be an integer between ${QUERIT_HIGHLIGHT_MIN_CHARACTERS} and ${QUERIT_HIGHLIGHT_MAX_CHARACTERS}.`,
+    );
+  }
+  return value;
+}
+
+function normalizeEnum<T extends string>(value: T | undefined, allowed: readonly T[], name: string): T | undefined {
+  if (value === undefined) return undefined;
+  if (!allowed.includes(value)) {
+    throw new Error(`${name} must be one of: ${allowed.join(", ")}.`);
+  }
+  return value;
 }
 
 function requireApiKey(env: NodeJS.ProcessEnv): string {

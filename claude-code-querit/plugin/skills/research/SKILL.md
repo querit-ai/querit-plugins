@@ -3,8 +3,8 @@ name: research
 description: Research current or external topics with Querit and produce source-grounded answers with citations. Use when facts may have changed, authoritative sources are needed, or the user asks for web research, verification, or citations.
 argument-hint: "[topic or question]"
 allowed-tools:
-  - mcp__plugin_querit_querit__web_search
-  - mcp__plugin_querit_querit__fetch_content
+  - mcp__plugin_querit-ai_querit__web_search
+  - mcp__plugin_querit-ai_querit__fetch_content
 ---
 
 # Querit research

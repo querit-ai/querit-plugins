@@ -2,7 +2,7 @@ import { readFile, readdir } from "node:fs/promises";
 import { fileURLToPath } from "node:url";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
-import { MCP_SERVER_VERSION } from "../src/mcp.js";
+import { MCP_SERVER_VERSION, TOOL_NAMES } from "../src/mcp.js";
 
 const packageRoot = fileURLToPath(new URL("../", import.meta.url));
 const pluginRoot = join(packageRoot, "plugin");
@@ -34,6 +34,19 @@ describe("Claude Code plugin package", () => {
 
     const bundle = await readFile(join(pluginRoot, "dist", "server.js"), "utf8");
     expect(bundle.startsWith("#!/usr/bin/env node")).toBe(true);
+  });
+
+  it("keeps the skill's allowed tools namespaced under the current plugin and server names", async () => {
+    const manifest = await json(join(pluginRoot, ".claude-plugin", "plugin.json"));
+    const mcp = await json(join(pluginRoot, ".mcp.json"));
+    const skill = await readFile(join(pluginRoot, "skills", "research", "SKILL.md"), "utf8");
+
+    // Claude Code exposes a plugin tool as mcp__plugin_<plugin-name>_<server-name>__<tool-name>.
+    for (const server of Object.keys(mcp.mcpServers as Record<string, unknown>)) {
+      for (const tool of TOOL_NAMES) {
+        expect(skill).toContain(`- mcp__plugin_${String(manifest.name)}_${server}__${tool}`);
+      }
+    }
   });
 
   it("contains one skill and no hook or agent components", async () => {

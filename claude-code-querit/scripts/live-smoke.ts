@@ -15,8 +15,6 @@ if (process.env.QUERIT_LIVE_SMOKE !== "1") {
     const search = await client.search({
       query: "Claude Code coding agent",
       count: 2,
-      chunksPerDoc: 1,
-      needContent: false,
     });
 
     if (search.results.length === 0) {
