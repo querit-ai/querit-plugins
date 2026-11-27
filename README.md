@@ -2,7 +2,7 @@
 
 Official [Querit](https://www.querit.ai) search integrations for automation and AI agent platforms.
 
-[Querit](https://www.querit.ai) delivers real-time, authoritative web search results and clean page content for LLM applications. Each integration in this repository connects one platform to the Querit API (`/v1/search` + `/v1/contents`) for live web search and page fetching — with cited sources, domain/region/language/time-range filters, and output that is always treated as untrusted web data. The magpie plugin, which lives in its own repository ([`querit-ai/magpie-querit`](https://github.com/querit-ai/magpie-querit)), covers search only, because magpie's plugin hook has no page-fetching side. The Oh My Pi entry below documents an upstream built-in provider, not a package in this repository.
+[Querit](https://www.querit.ai) delivers real-time, authoritative web search results and clean page content for LLM applications. Each integration in this repository connects one platform to the Querit API (`/v1/search` + `/v1/contents`) for live web search and page fetching — with cited sources, domain/region/language/time-range filters, and output that is always treated as untrusted web data. The magpie plugin, which lives in its own repository ([`querit-ai/magpie-querit`](https://github.com/querit-ai/magpie-querit)), covers search only, because magpie's plugin hook has no page-fetching side.
 
 | Platform | Package | Install |
 | --- | --- | --- |
@@ -11,17 +11,17 @@ Official [Querit](https://www.querit.ai) search integrations for automation and 
 | [OpenCode](https://opencode.ai) | `opencode-querit` | `"plugins": ["opencode-querit"]` |
 | [magpie](https://github.com/yetone/magpie) | [`magpie-querit`](https://github.com/querit-ai/magpie-querit) (own repository) | `magpie plugin add github:querit-ai/magpie-querit` |
 | [Claude Code](https://code.claude.com/docs/en/plugins) | `claude-code-querit` | `/plugin marketplace add querit-ai/querit-plugins` |
-| [n8n](https://n8n.io) | `n8n-nodes-querit` | Install as an n8n community node |
-| [Oh My Pi (OMP)](https://omp.sh) | Built-in Querit provider (not a plugin) | No install; available after upstream PR merges |
 
-Two more integrations live in this repository but are not generally available yet:
+Four more are not generally available yet — three live in this repository, and the Oh My Pi provider is an upstream change rather than a package here:
 
 | Platform | Directory | Status |
 | --- | --- | --- |
 | [Zapier](https://zapier.com) | `zapier-querit/` | Complete and locally validated; awaiting registration and Zapier public review |
 | [Browserbase](https://www.browserbase.com) | `browserbase-querit-demo/` | Reference demo, not a published package |
+| [n8n](https://n8n.io) | `n8n-nodes-querit/` | Temporarily not integrated: version 0.1.1 is on npm, but it predates the current Querit API and was not part of the 2026-11-27 update |
+| [Oh My Pi (OMP)](https://omp.sh) | — | Built-in Querit provider from an upstream change; available after that PR is merged |
 
-How each package integration reads the API key and search defaults is covered in its own section below; the magpie and Oh My Pi sections cover plugins that live outside this repository. Recent updates are summarized in [CHANGES.md](./CHANGES.md).
+How each integration reads the API key and search defaults is covered in its own section below; the magpie section covers a plugin that lives outside this repository. Recent updates are summarized in [CHANGES.md](./CHANGES.md).
 
 ## Get an API key
 
@@ -151,32 +151,6 @@ A Claude Code plugin that bundles a stdio MCP server exposing `web_search` and `
 The MCP server starts without the variable; a `web_search` or `fetch_content` call then fails with "Querit is not configured." until it is set.
 
 See the [claude-code-querit README](./claude-code-querit/README.md) for the full tool reference and the safety limits.
-
-## n8n-nodes-querit — n8n
-
-An n8n community node with **Search Web** and **Fetch Content** operations, native paired-item and `Continue On Fail` handling, and AI-tool support.
-
-Install `n8n-nodes-querit` through n8n's community-node interface, then create a **Querit API** credential and paste in the API key. n8n stores it as an encrypted credential; the node never writes it into workflow JSON or execution data. See the [n8n-nodes-querit README](./n8n-nodes-querit/README.md) for operation details and development instructions.
-
-## querit — Oh My Pi (OMP)
-
-The pending upstream OMP change adds a built-in Querit provider for both its `web_search` provider chain and the URL-fetch/reader path used by the built-in `read` tool. This is **not** an npm plugin from this repository, so there is nothing to install here. **Available after the upstream PR is merged**.
-
-**Credentials**
-
-- Set `QUERIT_API_KEY` in the environment that launches OMP, or
-- run `/login querit` in OMP and paste/save the key when prompted.
-
-**Select Querit**
-
-After the upstream PR is merged, make Querit the first `web_search` provider and select it for URL fetching with:
-
-```bash
-omp config set providers.webSearchOrder '["querit"]'
-omp config set providers.fetch querit
-```
-
-`providers.webSearchOrder` controls `web_search` provider priority, while `providers.fetch` controls the reader backend used when OMP's `read` tool fetches an HTTP(S) URL. After the upstream change lands, its search provider will send requests to `POST https://api.querit.ai/v1/search` with only `{ query, count }` (`count` defaults to `10` and is clamped to `1..20`), and its URL-content reader will send requests to `POST https://api.querit.ai/v1/contents`; both use Bearer authentication. Querit-specific language, site/domain, and date options remain unset so the service uses its defaults.
 
 ## zapier-querit — Zapier
 
