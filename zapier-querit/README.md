@@ -8,9 +8,12 @@ A focused Zapier Platform CLI integration for live web search through [Querit](h
 - Adds `Authorization: Bearer <key>` to every outbound request.
 - Tests a connection with the smallest useful request available: a fixed `POST https://api.querit.ai/v1/search` request with `count: 1`. Querit does not expose an identity endpoint, so no connection label is synthesized.
 - Sends Search input to `POST /v1/search` and returns `results.result` directly as Zapier search records—never as a line-item wrapper.
+- Sends only the parameters a Zap sets, so Querit applies its own defaults. Result Count is never forced to 5.
+- Retries the transient codes Querit documents (429, 500, 503) at most twice with jittered backoff and honors `Retry-After` up to 5 seconds. See [Retries and errors](#retries-and-errors).
 - Keeps only valid HTTP(S) result URLs, normalizes them with the URL standard, and removes duplicate normalized URLs while preserving the first result.
 - Gives each result a deterministic SHA-256 `id` derived from its normalized URL.
-- Handles non-success HTTP responses and non-`200` Querit `error_code` values, rejects malformed success payloads, limits response size, and removes the API key and control sequences from user-visible errors.
+- Handles non-success HTTP responses and non-`200` Querit `error_code` values (checked even on an HTTP 200), rejects malformed success payloads, limits response size, and removes the API key and control sequences from user-visible errors.
+- Ends every API failure message with the request's `search_id` when Querit returned one, so support can trace it.
 
 Remote result text is third-party web data. A Zap should treat titles, snippets, and content excerpts as untrusted input.
 
@@ -25,19 +28,28 @@ The project uses plain CommonJS JavaScript and pins the current official Zapier 
 
 ## Search inputs
 
+Any field left empty is not sent.
+
 | Field | Required | Description |
 | --- | --- | --- |
 | `query` | Yes | Search text, 1–1,000 characters. |
-| `count` | No | Result count, 1–20; defaults to 5. |
-| `time_range` | No | `d7`, `w2`, `m3`, or `y1`. |
+| `count` | No | Maximum number of results, 1–100. When empty, Querit applies its own default count. |
+| `time_range` | No | Preset period: `d7`, `w2`, `m3`, or `y1`. |
+| `time_range_custom` | No | Any other period Querit accepts: `d30` (days), `w6` (weeks), `m2` (months), `y3` (years), or a date range such as `2026-01-01to2026-03-31` (a single day is allowed). Cannot be combined with `time_range`. |
 | `countries` | No | Up to 20 supported country values. |
-| `languages` | No | Up to 20 supported language values. |
+| `languages` | No | Up to 20 supported language values, including Russian. |
 | `include_domains` | No | Domain allowlist, without URL schemes. |
 | `exclude_domains` | No | Domain denylist, without URL schemes. |
-| `include_content` | No | Requests sentence-level content excerpts. |
-| `chunks_per_doc` | No | Content chunks per result, 1–3. |
+| `vertical` | No | `code` or `finance`. Leave empty for universal search; a vertical that does not match the query loses results. |
+| `resource_tags` | No | `qa` and/or `github`. Requires `vertical` to be `code`. |
+| `rank_preference` | No | `relevance` or `freshness`. A boost on top of the default ranking, not a sort. Rejected with the `code` vertical because Querit returns 400 for that combination. |
+| `include_content` | No | Requests the page body text with each result. |
+| `content_max_chars` | No | Body characters per result, 1–1,000,000. Requires `include_content`; empty means the full body. |
+| `highlights` | No | Requests query-focused fragments of the page body with each result. |
+| `highlights_max_characters` | No | Highlight characters per result, 100–8,000. Requires `highlights`; empty lets Querit choose the length. |
+| `chunks_per_doc` | No | Deprecated by Querit in favor of `highlights`. Content chunks per result, 1–3; sent only when a Zap sets it. |
 
-The action maps these fields to Querit's documented request shape (`filters.sites`, `filters.timeRange`, `filters.geo`, `filters.languages`, `needContent`, and `chunksPerDoc`).
+The action maps these fields to Querit's documented request shape (`filters.sites`, `filters.timeRange`, `filters.geo`, `filters.languages`, `filters.vertical`, `filters.resourceTags`, `rank`, `needContent`, `contentMaxChars`, `highlights`, and `chunksPerDoc`). A filter that depends on another field is a handled input error rather than a bad request: `resource_tags` without the `code` vertical, `rank_preference` with the `code` vertical, `content_max_chars` without `include_content`, `highlights_max_characters` without `highlights`, or both time range fields at once.
 
 ## Search outputs
 
@@ -47,9 +59,27 @@ Every returned item is a flat object with these fields:
 - `title`, `url`, `snippet`
 - `page_age`, `site_name`, `site_icon`
 - `content` (sentence excerpts joined as text)
+- `highlights` (query-focused fragments joined as text)
 - `query`, `search_id`, `took`
+- `cost`
+
+`page_age` is Querit's plaintext UTC time passed through unchanged. It is not ISO-8601, so reformat it before treating it as a date.
+
+`cost` is Querit's reported charge for the request, shown with six decimals (for example `USD 0.000123`). It is empty when Querit did not report a cost, which means unavailable and never free. A reported zero charge is shown as `USD 0.000000`.
+
+A response larger than 2 MB fails the search with a `QueritResponseError` naming the limit; it is never truncated or retried. Large result sets that also request body text can reach that limit, so lower `count` or set `content_max_chars` to keep them under it.
 
 No matches returns `[]`.
+
+## Retries and errors
+
+Querit asks clients to check `error_code` in the response body even on an HTTP 200. The `error_code` is therefore taken as the verdict of every response: a non-200 `error_code` fails the search whatever the HTTP status was, and it is the code the retry decision and the reported error status use.
+
+Only 429, 500, and 503 are retried: at most two retries (three requests in total). Each retry waits for a jittered exponential backoff, at most 500 ms before the first retry and at most 1,000 ms before the second. When the response carries `Retry-After` (delay-seconds or an HTTP-date), that delay is used instead of the backoff as long as it is at most 5 seconds; a longer one is not waited out, and the search fails at once with a message that says so.
+
+Nothing else is retried: not 400, 401, 403, or 404, not network failures or timeouts, and not a malformed success payload.
+
+Every API failure message ends with `[search_id: N]` when the response carried a `search_id`, and a failure that followed retries states how many attempts were made. When a 429 still fails after retries (or because `Retry-After` was too long), the action raises `ThrottledError`, the same error the Zapier platform raises for a 429 by default, with the `Retry-After` delay in seconds when one was sent.
 
 ## Local development
 

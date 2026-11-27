@@ -1,8 +1,13 @@
 'use strict';
 
+const { messageOf } = require('../lib/sanitize');
 const { searchQuerit } = require('../lib/querit');
 
-const DEFAULT_COUNT = 5;
+const MAX_COUNT = 100;
+const MAX_CHUNKS_PER_DOC = 3;
+const CONTENT_MAX_CHARS_LIMIT = 1_000_000;
+const HIGHLIGHTS_MIN_CHARACTERS = 100;
+const HIGHLIGHTS_MAX_CHARACTERS = 8_000;
 const MAX_LIST_ITEMS = 20;
 
 const COUNTRY_VALUES = [
@@ -33,6 +38,7 @@ const LANGUAGE_VALUES = [
   'french',
   'spanish',
   'portuguese',
+  'russian',
 ];
 
 const TIME_RANGE_CHOICES = {
@@ -40,6 +46,27 @@ const TIME_RANGE_CHOICES = {
   w2: 'Past 2 weeks',
   m3: 'Past 3 months',
   y1: 'Past year',
+};
+
+// Querit's other time range forms: <unit letter><N> (days, weeks, months, years)
+// and an inclusive date range.
+const RELATIVE_TIME_RANGE = /^[dwmy][1-9]\d*$/u;
+const ABSOLUTE_TIME_RANGE = /^(\d{4}-\d{2}-\d{2})to(\d{4}-\d{2}-\d{2})$/u;
+
+const VERTICAL_CHOICES = {
+  code: 'Code',
+  finance: 'Finance',
+};
+
+const RESOURCE_TAG_CHOICES = {
+  qa: 'Q&A pages',
+  github: 'GitHub',
+};
+const RESOURCE_TAG_VALUES = Object.keys(RESOURCE_TAG_CHOICES);
+
+const RANK_PREFERENCE_CHOICES = {
+  relevance: 'Relevance',
+  freshness: 'Freshness',
 };
 
 const toChoices = (values) => Object.fromEntries(
@@ -51,11 +78,7 @@ const perform = async (z, bundle) => {
   try {
     request = buildSearchRequest(bundle.inputData || {});
   } catch (error) {
-    throw new z.errors.Error(
-      error instanceof Error ? error.message : String(error),
-      'InvalidInputData',
-      400,
-    );
+    throw new z.errors.Error(messageOf(error), 'InvalidInputData', 400);
   }
   return searchQuerit(z, bundle, request);
 };
@@ -65,14 +88,53 @@ const buildSearchRequest = (inputData) => {
   if (!query) throw new Error('Search Query is required.');
   if (query.length > 1000) throw new Error('Search Query must be 1,000 characters or fewer.');
 
-  const count = parseInteger(inputData.count, DEFAULT_COUNT, 1, 20, 'Result Count');
-  const chunksPerDoc = parseOptionalInteger(inputData.chunks_per_doc, 1, 3, 'Content Chunks per Result');
+  // Querit applies its own default count; only send one the user chose.
+  const count = parseInteger(inputData.count, 1, MAX_COUNT, 'Result Count');
+  const chunksPerDoc = parseInteger(inputData.chunks_per_doc, 1, MAX_CHUNKS_PER_DOC, 'Content Chunks per Result');
   const needContent = parseOptionalBoolean(inputData.include_content, 'Include Content');
+  const contentMaxChars = parseInteger(
+    inputData.content_max_chars,
+    1,
+    CONTENT_MAX_CHARS_LIMIT,
+    'Content Max Characters',
+  );
+  if (contentMaxChars !== undefined && needContent !== true) {
+    throw new Error('Content Max Characters requires Include Content to be on.');
+  }
+
+  const highlights = parseOptionalBoolean(inputData.highlights, 'Include Highlights');
+  const highlightsMaxCharacters = parseInteger(
+    inputData.highlights_max_characters,
+    HIGHLIGHTS_MIN_CHARACTERS,
+    HIGHLIGHTS_MAX_CHARACTERS,
+    'Max Highlight Characters',
+  );
+  if (highlightsMaxCharacters !== undefined && highlights !== true) {
+    throw new Error('Max Highlight Characters requires Include Highlights to be on.');
+  }
+
   const includeDomains = parseDomains(inputData.include_domains, 'Include Domains');
   const excludeDomains = parseDomains(inputData.exclude_domains, 'Exclude Domains');
   const countries = parseAllowedList(inputData.countries, COUNTRY_VALUES, 'Countries');
   const languages = parseAllowedList(inputData.languages, LANGUAGE_VALUES, 'Languages');
-  const timeRange = parseTimeRange(inputData.time_range);
+  const timeRange = parseChoice(inputData.time_range, TIME_RANGE_CHOICES, 'Time Range');
+  const customTimeRange = parseCustomTimeRange(inputData.time_range_custom);
+  if (timeRange && customTimeRange) {
+    throw new Error('Use either Time Range or Custom Time Range, not both.');
+  }
+
+  const vertical = parseChoice(inputData.vertical, VERTICAL_CHOICES, 'Vertical');
+  const resourceTags = parseAllowedList(inputData.resource_tags, RESOURCE_TAG_VALUES, 'Resource Tags');
+  if (resourceTags.length && vertical !== 'code') {
+    throw new Error('Resource Tags require Vertical to be Code.');
+  }
+
+  // Querit rejects rank combined with the code vertical.
+  const rankPreference = parseChoice(inputData.rank_preference, RANK_PREFERENCE_CHOICES, 'Rank Preference');
+  if (rankPreference && vertical === 'code') {
+    throw new Error('Rank Preference is not supported with the Code vertical.');
+  }
+
   const filters = {};
 
   if (includeDomains.length || excludeDomains.length) {
@@ -81,31 +143,34 @@ const buildSearchRequest = (inputData) => {
       ...(excludeDomains.length ? { exclude: excludeDomains } : {}),
     };
   }
-  if (timeRange) filters.timeRange = { date: timeRange };
+  if (timeRange || customTimeRange) filters.timeRange = { date: timeRange || customTimeRange };
   if (countries.length) filters.geo = { countries: { include: countries } };
   if (languages.length) filters.languages = { include: languages };
+  if (vertical) filters.vertical = vertical;
+  if (resourceTags.length) filters.resourceTags = { include: resourceTags };
 
   return {
     query,
-    count,
+    ...(count === undefined ? {} : { count }),
     ...(chunksPerDoc === undefined ? {} : { chunksPerDoc }),
-    ...(needContent === undefined ? {} : { needContent }),
+    // Querit defaults both toggles to false, so an off toggle is simply not sent.
+    ...(highlights
+      ? { highlights: highlightsMaxCharacters === undefined ? true : { maxCharacters: highlightsMaxCharacters } }
+      : {}),
+    ...(needContent ? { needContent: true } : {}),
+    ...(contentMaxChars === undefined ? {} : { contentMaxChars }),
+    ...(rankPreference ? { rank: { preference: rankPreference } } : {}),
     ...(Object.keys(filters).length ? { filters } : {}),
   };
 };
 
-const parseInteger = (value, defaultValue, minimum, maximum, label) => {
-  if (value === undefined || value === null || value === '') return defaultValue;
+const parseInteger = (value, minimum, maximum, label) => {
+  if (value === undefined || value === null || value === '') return undefined;
   const parsed = typeof value === 'number' ? value : Number(String(value).trim());
   if (!Number.isInteger(parsed) || parsed < minimum || parsed > maximum) {
     throw new Error(`${label} must be an integer from ${minimum} to ${maximum}.`);
   }
   return parsed;
-};
-
-const parseOptionalInteger = (value, minimum, maximum, label) => {
-  if (value === undefined || value === null || value === '') return undefined;
-  return parseInteger(value, minimum, minimum, maximum, label);
 };
 
 const parseOptionalBoolean = (value, label) => {
@@ -159,13 +224,38 @@ const parseList = (value) => {
   return [...normalized];
 };
 
-const parseTimeRange = (value) => {
+const parseChoice = (value, choices, label) => {
   if (value === undefined || value === null || value === '') return undefined;
   const normalized = String(value).trim().toLowerCase();
-  if (!Object.prototype.hasOwnProperty.call(TIME_RANGE_CHOICES, normalized)) {
-    throw new Error('Time Range contains an unsupported value.');
+  if (!Object.prototype.hasOwnProperty.call(choices, normalized)) {
+    throw new Error(`${label} contains an unsupported value.`);
   }
   return normalized;
+};
+
+const parseCustomTimeRange = (value) => {
+  if (value === undefined || value === null || value === '') return undefined;
+  const normalized = String(value).trim().toLowerCase();
+  if (RELATIVE_TIME_RANGE.test(normalized)) return normalized;
+
+  const range = ABSOLUTE_TIME_RANGE.exec(normalized);
+  const from = range ? toEpochDay(range[1]) : undefined;
+  const to = range ? toEpochDay(range[2]) : undefined;
+  if (from === undefined || to === undefined || from > to) {
+    throw new Error(
+      'Custom Time Range must be a period such as d30, w6, m2, or y3, '
+      + 'or a date range like 2026-01-01to2026-03-31 with the start date on or before the end date.',
+    );
+  }
+  return normalized;
+};
+
+/** Days since the epoch for a real calendar date written as YYYY-MM-DD; any other input is invalid. */
+const toEpochDay = (date) => {
+  const epochMs = Date.parse(`${date}T00:00:00.000Z`);
+  return Number.isFinite(epochMs) && new Date(epochMs).toISOString().startsWith(date)
+    ? epochMs / 86_400_000
+    : undefined;
 };
 
 module.exports = {
@@ -190,7 +280,7 @@ module.exports = {
         label: 'Result Count',
         type: 'integer',
         required: false,
-        helpText: 'Number of results to return, from 1 to 20. Defaults to 5.',
+        helpText: 'Maximum number of results to return, from 1 to 100. Leave empty to use Querit\'s default count.',
       },
       {
         key: 'time_range',
@@ -198,7 +288,15 @@ module.exports = {
         type: 'string',
         required: false,
         choices: TIME_RANGE_CHOICES,
-        helpText: 'Optionally limit results to a recent period.',
+        helpText: 'Optionally limit results to a recent period. For any other period or exact dates, use Custom Time Range instead.',
+      },
+      {
+        key: 'time_range_custom',
+        label: 'Custom Time Range',
+        type: 'string',
+        required: false,
+        placeholder: 'd30 or 2026-01-01to2026-03-31',
+        helpText: 'A period such as `d30` (days), `w6` (weeks), `m2` (months), or `y3` (years), or a date range like `2026-01-01to2026-03-31`. Cannot be combined with Time Range.',
       },
       {
         key: 'countries',
@@ -235,6 +333,31 @@ module.exports = {
         helpText: 'Do not return results from these domains. Enter domain names without a URL scheme.',
       },
       {
+        key: 'vertical',
+        label: 'Vertical',
+        type: 'string',
+        required: false,
+        choices: VERTICAL_CHOICES,
+        helpText: 'Search only this vertical. Leave empty for universal search; a vertical that does not match the query loses results.',
+      },
+      {
+        key: 'resource_tags',
+        label: 'Resource Tags',
+        type: 'string',
+        required: false,
+        list: true,
+        choices: RESOURCE_TAG_CHOICES,
+        helpText: 'Limit code results to these source types. Requires Vertical to be Code.',
+      },
+      {
+        key: 'rank_preference',
+        label: 'Rank Preference',
+        type: 'string',
+        required: false,
+        choices: RANK_PREFERENCE_CHOICES,
+        helpText: 'Boost results that score best on this preference. Not supported with the Code vertical.',
+      },
+      {
         key: 'include_content',
         label: 'Include Content',
         type: 'boolean',
@@ -242,11 +365,32 @@ module.exports = {
         helpText: 'Include sentence-level content excerpts with each result.',
       },
       {
+        key: 'content_max_chars',
+        label: 'Content Max Characters',
+        type: 'integer',
+        required: false,
+        helpText: 'Maximum body characters per result, from 1 to 1,000,000. Requires Include Content; leave empty for the full body.',
+      },
+      {
+        key: 'highlights',
+        label: 'Include Highlights',
+        type: 'boolean',
+        required: false,
+        helpText: 'Include query-focused fragments of the page body text with each result. Preferred over Content Chunks per Result.',
+      },
+      {
+        key: 'highlights_max_characters',
+        label: 'Max Highlight Characters',
+        type: 'integer',
+        required: false,
+        helpText: 'Maximum highlight characters per result, from 100 to 8,000. Requires Include Highlights; leave empty to let Querit choose.',
+      },
+      {
         key: 'chunks_per_doc',
         label: 'Content Chunks per Result',
         type: 'integer',
         required: false,
-        helpText: 'Number of content chunks to request per result, from 1 to 3.',
+        helpText: 'Deprecated by Querit; use Include Highlights instead. Number of content chunks to request per result, from 1 to 3. Sent only when set.',
       },
     ],
     perform,
@@ -260,9 +404,11 @@ module.exports = {
       site_name: 'Example',
       site_icon: 'https://example.com/favicon.ico',
       content: 'An example content excerpt.',
+      highlights: 'An example highlight fragment.',
       query: 'example query',
       search_id: '123456789',
       took: '0.42s',
+      cost: 'USD 0.123456',
     },
     outputFields: [
       { key: 'id', label: 'ID', type: 'string' },
@@ -274,9 +420,11 @@ module.exports = {
       { key: 'site_name', label: 'Site Name', type: 'string' },
       { key: 'site_icon', label: 'Site Icon URL', type: 'string' },
       { key: 'content', label: 'Content Excerpts', type: 'string' },
+      { key: 'highlights', label: 'Highlights', type: 'string' },
       { key: 'query', label: 'Resolved Query', type: 'string' },
       { key: 'search_id', label: 'Search ID', type: 'string' },
       { key: 'took', label: 'Server Time', type: 'string' },
+      { key: 'cost', label: 'Cost', type: 'string' },
     ],
   },
 };

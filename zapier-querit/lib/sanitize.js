@@ -62,8 +62,11 @@ const sanitizeUntrustedText = (value) => {
   return output.replace(BIDI_CONTROLS, '');
 };
 
+/** The message of a thrown value, whatever its type. */
+const messageOf = (value) => (value instanceof Error ? value.message : String(value ?? ''));
+
 const sanitizeErrorMessage = (value, secret) => {
-  const rawText = value instanceof Error ? value.message : String(value ?? '');
+  const rawText = messageOf(value);
   const rawSecrets = new Set();
 
   if (typeof secret === 'string' && secret) {
@@ -120,6 +123,7 @@ function skipControlString(value, start) {
 }
 
 module.exports = {
+  messageOf,
   sanitizeErrorMessage,
   sanitizeUntrustedText,
 };
